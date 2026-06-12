@@ -38,3 +38,23 @@ def test_exports_run_in_background_task():
 
     assert "run_export_task" in app_source
     assert "threading.Thread(target=worker, daemon=True).start()" in app_source
+
+
+def test_main_window_uses_redesigned_shell_sections():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "build_topbar" in app_source
+    assert "build_sidebar" in app_source
+    assert "build_workbench" in app_source
+    assert "Реестр диссертаций" in app_source
+    assert "База данных активна" in app_source
+    assert "Загрузить Excel" in app_source
+    assert "Новая запись" in app_source
+
+
+def test_main_window_uses_shared_theme_not_legacy_fonts():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert 'APP_THEME["topbar"]' in app_source
+    assert 'FONT["family"]' in app_source
+    assert "Times New Roman" not in app_source

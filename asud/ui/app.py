@@ -18,7 +18,7 @@ from asud.config import CONFIG_FILE, DEFAULT_CONFIG
 from asud.data_model import DataModel
 from asud.reports import ReportGenerator
 from asud.storage import SQLiteStorage
-from asud.ui.theme import APP_THEME, WINDOW_MINSIZE, configure_ttk_style
+from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, WINDOW_MINSIZE, configure_ttk_style
 from asud.ui.dialogs import (
     ColumnSelectorDialog,
     FilterDialog,
@@ -48,9 +48,9 @@ class DissertationReportApp:
     def __init__(self, root):
         self.root = root;
         self.root.title("Автоматизированная система учёта диссертаций | ВМедА им. С.М. Кирова");
-        self.root.geometry("1300x700");
+        self.root.geometry("1360x820");
         self.root.minsize(*WINDOW_MINSIZE)
-        self.root.configure(bg=APP_THEME["background"])
+        self.root.configure(bg=APP_THEME["app_background"])
         self.config = self.load_config();
         self.setup_logging()
         self.storage = SQLiteStorage(self.config["db_path"])
@@ -66,7 +66,7 @@ class DissertationReportApp:
         self.current_role = None;
         self.current_filepath = None
         self.status_var = tk.StringVar();
-        self.status_var.set("Готов")
+        self.status_var.set("Готово. Данные будут сохранены в локальную базу SQLite.")
         self.task_queue = queue.Queue();
         self.root.after(100, self.process_queue);
         self.ui_built = False;
@@ -158,8 +158,9 @@ class DissertationReportApp:
         if login.result:
             self.current_user, self.current_role = login.result
             self.log_action("Вход")
-            rn = {"admin": "Администратор", "editor": "Редактор", "viewer": "Наблюдатель"}
-            self.status_var.set(f"Пользователь: {self.current_user} | {rn.get(self.current_role, self.current_role)}")
+            self.status_var.set(
+                f"Пользователь: {self.current_user} | {ROLE_LABELS.get(self.current_role, self.current_role)}"
+            )
             self.build_ui();
             self.load_persisted_data();
             self.update_permissions();
@@ -168,119 +169,315 @@ class DissertationReportApp:
             self.root.destroy()
 
     def update_permissions(self):
-        aa = [self.btn_load, self.btn_add, self.btn_edit, self.btn_delete, self.btn_users];
-        ea = [self.btn_add, self.btn_edit, self.btn_delete]
+        mutation_buttons = [self.btn_load, self.btn_add, self.btn_edit, self.btn_delete]
         if self.current_role == "admin":
-            for b in aa: b.config(state="normal")
+            for button in mutation_buttons + [self.btn_users]:
+                button.config(state="normal")
         elif self.current_role == "editor":
-            for b in ea: b.config(state="normal")
-            for b in aa:
-                if b not in ea: b.config(state="disabled")
+            for button in mutation_buttons:
+                button.config(state="normal")
+            self.btn_users.config(state="disabled")
         else:
-            for b in aa + ea: b.config(state="disabled")
+            for button in mutation_buttons + [self.btn_users]:
+                button.config(state="disabled")
 
     def build_ui(self):
-        self.bg_main = APP_THEME["background"];
-        self.bg_panel = APP_THEME["panel"];
-        self.fg_text = APP_THEME["text"];
-        self.accent = APP_THEME["accent"];
-        self.table_bg = APP_THEME["table_background"];
-        self.table_fg = APP_THEME["table_text"]
-        hf = tk.Frame(self.root, bg=self.bg_main);
-        hf.pack(fill="x", padx=10, pady=5)
+        self.root.configure(bg=APP_THEME["app_background"])
+        configure_ttk_style(self.root, self.config["theme"])
         self.logo_image = None
+        self.build_topbar()
+        self.build_statusbar()
+        self.content_frame = tk.Frame(self.root, bg=APP_THEME["app_background"])
+        self.content_frame.pack(fill="both", expand=True)
+        self.build_sidebar(self.content_frame)
+        self.build_workbench(self.content_frame)
+        self.bind_shortcuts()
+
+    def ui_font(self, size_key="size", weight=None):
+        font = (FONT["family"], FONT[size_key])
+        if weight:
+            font += (weight,)
+        return font
+
+    def build_topbar(self):
+        self.topbar_frame = tk.Frame(self.root, bg=APP_THEME["topbar"], height=64)
+        self.topbar_frame.pack(fill="x")
+        self.topbar_frame.pack_propagate(False)
+        self.topbar_frame.columnconfigure(1, weight=1)
+
+        brand = tk.Frame(self.topbar_frame, bg=APP_THEME["topbar"])
+        brand.grid(row=0, column=0, padx=(SPACING["lg"], SPACING["md"]), sticky="w")
+
         if PIL_AVAILABLE and os.path.exists(self.config["logo_path"]):
             try:
                 pi = Image.open(self.config["logo_path"]);
-                pi = pi.resize((80, 80), Image.Resampling.LANCZOS);
+                pi = pi.resize((38, 38), Image.Resampling.LANCZOS);
                 self.logo_image = ImageTk.PhotoImage(pi)
             except Exception as e:
                 print(f"Лого: {e}")
-        hf.columnconfigure(0, weight=0);
-        hf.columnconfigure(1, weight=1)
-        if self.logo_image: tk.Label(hf, image=self.logo_image, bg=self.bg_main).grid(row=0, column=0, padx=(0, 10),
-                                                                                      pady=5, sticky="w")
-        tk.Label(hf,
-                 text="Военно-медицинская академия имени С.М. Кирова\nАвтоматизированная система учёта диссертаций",
-                 font=("Times New Roman", 16, "bold"), fg=self.accent, bg=self.bg_main, justify="center").grid(row=0,
-                                                                                                               column=1,
-                                                                                                               sticky="ew",
-                                                                                                               pady=5)
 
-        self.control_frame = tk.Frame(self.root, bg=self.bg_panel, width=320);
-        self.control_frame.pack(side="left", fill="y", padx=10, pady=10)
-        bs = {"bg": self.accent, "fg": "black", "font": ("Times New Roman", 10, "bold"), "activebackground": APP_THEME["accent_active"],
-              "bd": 2, "relief": "raised"}
-        tk.Label(self.control_frame, text="1. Загрузка данных", bg=self.bg_panel, fg=self.fg_text,
-                 font=("Times New Roman", 11, "bold")).pack(anchor="w", pady=(0, 5))
-        self.btn_load = tk.Button(self.control_frame, text="Загрузить Excel", command=self.load_excel_async, width=28,
-                                  **bs);
-        self.btn_load.pack(pady=2)
-        tk.Label(self.control_frame, text="2. Управление", bg=self.bg_panel, fg=self.fg_text,
-                 font=("Times New Roman", 11, "bold")).pack(anchor="w", pady=(15, 5))
-        self.btn_add = tk.Button(self.control_frame, text="Добавить запись", command=self.add_record, width=28, **bs);
-        self.btn_add.pack(pady=2)
-        self.btn_edit = tk.Button(self.control_frame, text="Редактировать", command=self.edit_selected, width=28, **bs);
-        self.btn_edit.pack(pady=2)
-        self.btn_delete = tk.Button(self.control_frame, text="Удалить", command=self.delete_selected, width=28, **bs);
-        self.btn_delete.pack(pady=2)
+        if self.logo_image:
+            tk.Label(brand, image=self.logo_image, bg=APP_THEME["topbar"]).pack(side="left", padx=(0, SPACING["sm"]))
+        else:
+            tk.Label(
+                brand,
+                text="АС",
+                bg=APP_THEME["primary_alt"],
+                fg=APP_THEME["topbar_text"],
+                font=self.ui_font("size", "bold"),
+                width=4,
+                height=2,
+            ).pack(side="left", padx=(0, SPACING["sm"]))
 
-        tk.Label(self.control_frame, text="3. Поиск и фильтры", bg=self.bg_panel, fg=self.fg_text,
-                 font=("Times New Roman", 11, "bold")).pack(anchor="w", pady=(15, 5))
-        self.search_frame = tk.Frame(self.control_frame, bg=self.bg_panel);
-        self.search_frame.pack(fill="x", pady=2)
-        self.search_entry = tk.Entry(self.search_frame, width=20, font=("Times New Roman", 10));
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        brand_text = tk.Frame(brand, bg=APP_THEME["topbar"])
+        brand_text.pack(side="left")
+        tk.Label(
+            brand_text,
+            text="АСУД",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=self.ui_font("size", "bold"),
+            anchor="w",
+        ).pack(anchor="w")
+        tk.Label(
+            brand_text,
+            text="Военно-медицинская академия им. С.М. Кирова",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=self.ui_font("small"),
+            anchor="w",
+        ).pack(anchor="w")
+
+        context = tk.Frame(self.topbar_frame, bg=APP_THEME["topbar"])
+        context.grid(row=0, column=1, sticky="ew")
+        tk.Label(
+            context,
+            text="Реестр диссертаций",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=self.ui_font("title", "bold"),
+        ).pack(side="left")
+        tk.Label(
+            context,
+            text="База данных активна",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=self.ui_font("small"),
+            padx=SPACING["md"],
+        ).pack(side="left")
+
+        account = tk.Frame(self.topbar_frame, bg=APP_THEME["topbar"])
+        account.grid(row=0, column=2, padx=(SPACING["md"], SPACING["lg"]), sticky="e")
+        tk.Label(
+            account,
+            text=self.current_user or "",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=self.ui_font("size", "bold"),
+            anchor="e",
+        ).pack(anchor="e")
+        tk.Label(
+            account,
+            text=ROLE_LABELS.get(self.current_role, self.current_role or ""),
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=self.ui_font("small"),
+            anchor="e",
+        ).pack(anchor="e")
+
+    def build_sidebar(self, parent):
+        self.control_frame = tk.Frame(parent, bg=APP_THEME["sidebar"], width=276)
+        self.control_frame.pack(side="left", fill="y")
+        self.control_frame.pack_propagate(False)
+
+        self.add_nav_group("Данные")
+        self.btn_load = self.create_nav_button("Загрузить Excel", self.load_excel_async, active=True)
+        self.btn_add = self.create_nav_button("Новая запись", self.add_record)
+        self.btn_edit = self.create_nav_button("Редактировать", self.edit_selected)
+        self.btn_delete = self.create_nav_button("Удалить", self.delete_selected, variant="danger")
+
+        self.add_nav_group("Отбор")
+        self.create_nav_button("Расширенный фильтр", self.open_filter_dialog)
+        self.create_nav_button("Сбросить отбор", self.clear_filters)
+
+        self.add_nav_group("Выгрузка")
+        self.btn_export_excel = self.create_nav_button("Excel", self.export_excel)
+        self.btn_export_word = self.create_nav_button("Word", self.export_word)
+        if MATPLOTLIB_AVAILABLE:
+            self.btn_stats = self.create_nav_button("Статистика", self.show_statistics)
+
+        self.add_nav_group("Администрирование")
+        self.btn_users = self.create_nav_button("Пользователи", self.manage_users)
+        self.create_nav_button("Сменить пользователя", self.switch_user)
+        self.create_nav_button("Выход", self.on_closing, variant="neutral")
+
+    def add_nav_group(self, text):
+        top_pad = SPACING["panel"] if self.control_frame.winfo_children() else SPACING["md"]
+        tk.Label(
+            self.control_frame,
+            text=text.upper(),
+            bg=APP_THEME["sidebar"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("caption", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["panel"], pady=(top_pad, SPACING["xs"]))
+
+    def create_nav_button(self, text, command, variant="default", active=False):
+        palette = {
+            "default": (APP_THEME["surface"], APP_THEME["text"], APP_THEME["line"]),
+            "danger": (APP_THEME["danger"], APP_THEME["topbar_text"], APP_THEME["danger"]),
+            "neutral": (APP_THEME["surface_soft"], APP_THEME["muted_text"], APP_THEME["line"]),
+        }
+        bg, fg, border = palette[variant]
+        if active:
+            bg, fg, border = APP_THEME["primary"], APP_THEME["topbar_text"], APP_THEME["primary"]
+        button = tk.Button(
+            self.control_frame,
+            text=text,
+            command=command,
+            bg=bg,
+            fg=fg,
+            activebackground=APP_THEME["primary_alt"],
+            activeforeground=APP_THEME["topbar_text"],
+            disabledforeground="#a7b0bd",
+            font=self.ui_font("size", "bold"),
+            anchor="w",
+            relief="flat",
+            bd=1,
+            highlightbackground=border,
+            highlightcolor=border,
+            padx=SPACING["md"],
+            pady=SPACING["sm"],
+        )
+        button.pack(fill="x", padx=SPACING["panel"], pady=3)
+        return button
+
+    def build_workbench(self, parent):
+        self.main_frame = tk.Frame(parent, bg=APP_THEME["app_background"])
+        self.main_frame.pack(side="left", fill="both", expand=True, padx=SPACING["lg"], pady=SPACING["panel"])
+        self.main_frame.rowconfigure(2, weight=1)
+        self.main_frame.columnconfigure(0, weight=1)
+
+        self.toolbar_frame = tk.Frame(self.main_frame, bg=APP_THEME["app_background"])
+        self.toolbar_frame.grid(row=0, column=0, sticky="ew")
+        self.toolbar_frame.columnconfigure(0, weight=1)
+
+        search_box = tk.Frame(
+            self.toolbar_frame,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        search_box.grid(row=0, column=0, sticky="ew", padx=(0, SPACING["md"]))
+        search_box.columnconfigure(0, weight=1)
+        self.search_entry = tk.Entry(
+            search_box,
+            borderwidth=0,
+            relief="flat",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            insertbackground=APP_THEME["text"],
+            font=(FONT["family"], FONT["size"]),
+        )
+        self.search_entry.grid(row=0, column=0, sticky="ew", padx=SPACING["md"], pady=SPACING["sm"])
         self.search_entry.bind("<KeyRelease>", lambda e: self.smart_search())
-        tk.Button(self.search_frame, text="🔍", command=self.simple_search, bg=self.accent, fg="black", width=3,
-                  font=("Times New Roman", 8)).pack(side="right")
+        tk.Button(
+            search_box,
+            text="Найти",
+            command=self.simple_search,
+            bg=APP_THEME["primary_alt"],
+            fg=APP_THEME["topbar_text"],
+            activebackground=APP_THEME["primary"],
+            activeforeground=APP_THEME["topbar_text"],
+            font=self.ui_font("size", "bold"),
+            relief="flat",
+            padx=SPACING["md"],
+            pady=SPACING["sm"],
+        ).grid(row=0, column=1, sticky="e")
 
-        # 🔧 ИСПРАВЛЕНО: Поле года с безопасным вводом
-        self.year_filter_frame = tk.Frame(self.control_frame, bg=self.bg_panel);
-        self.year_filter_frame.pack(fill="x", pady=2)
-        tk.Label(self.year_filter_frame, text="📅 Год:", bg=self.bg_panel, fg=self.fg_text,
-                 font=("Times New Roman", 9)).pack(side="left")
-        self.year_entry = tk.Entry(self.year_filter_frame, width=12, font=("Times New Roman", 9));
-        self.year_entry.pack(side="left", padx=2)
+        year_box = tk.Frame(
+            self.toolbar_frame,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        year_box.grid(row=0, column=1, sticky="e")
+        tk.Label(
+            year_box,
+            text="Год",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small", "bold"),
+        ).pack(side="left", padx=(SPACING["md"], SPACING["xs"]))
+        self.year_entry = tk.Entry(
+            year_box,
+            width=18,
+            borderwidth=0,
+            relief="flat",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            insertbackground=APP_THEME["text"],
+            font=(FONT["family"], FONT["small"]),
+        )
+        self.year_entry.pack(side="left", padx=SPACING["xs"], pady=SPACING["sm"])
         self.year_entry.bind("<KeyRelease>", lambda e: self.apply_year_filter())
         self.year_entry.insert(0, "2023 или 2020-2024")
         self.year_entry.bind("<FocusIn>", lambda e: self._on_year_focus_in())
         self.year_entry.bind("<FocusOut>", lambda e: self._on_year_focus_out())
-        tk.Button(self.year_filter_frame, text="✕", command=self.clear_year_filter, bg=self.accent, fg="black", width=2,
-                  font=("Times New Roman", 8)).pack(side="left", padx=2)
+        tk.Button(
+            year_box,
+            text="Сброс",
+            command=self.clear_year_filter,
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["muted_text"],
+            activebackground=APP_THEME["line"],
+            font=self.ui_font("small", "bold"),
+            relief="flat",
+            padx=SPACING["sm"],
+        ).pack(side="left", padx=(SPACING["xs"], SPACING["sm"]))
 
-        tk.Button(self.control_frame, text="Расширенный фильтр", command=self.open_filter_dialog, width=28, **bs).pack(
-            pady=2)
-        tk.Button(self.control_frame, text="Сбросить фильтры", command=self.clear_filters, width=28, **bs).pack(pady=2)
+        self.filter_summary_var = tk.StringVar(value="Найдено: 0")
+        tk.Label(
+            self.main_frame,
+            textvariable=self.filter_summary_var,
+            bg=APP_THEME["app_background"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small"),
+            anchor="w",
+        ).grid(row=1, column=0, sticky="ew", pady=(SPACING["sm"], SPACING["sm"]))
 
-        tk.Label(self.control_frame, text="4. Отчёты", bg=self.bg_panel, fg=self.fg_text,
-                 font=("Times New Roman", 11, "bold")).pack(anchor="w", pady=(15, 5))
-        self.btn_export_excel = tk.Button(self.control_frame, text="Экспорт Excel", command=self.export_excel, width=28,
-                                          **bs);
-        self.btn_export_excel.pack(pady=2)
-        self.btn_export_word = tk.Button(self.control_frame, text="Экспорт Word", command=self.export_word, width=28,
-                                         **bs);
-        self.btn_export_word.pack(pady=2)
-        if MATPLOTLIB_AVAILABLE: self.btn_stats = tk.Button(self.control_frame, text="Статистика",
-                                                            command=self.show_statistics, width=28,
-                                                            **bs); self.btn_stats.pack(pady=2)
-        self.btn_users = tk.Button(self.control_frame, text="👥 Пользователи", command=self.manage_users, width=28,
-                                   **bs)
-        self.btn_users.pack(pady=2)
-        tk.Button(self.control_frame, text="🔄 Сменить пользователя", command=self.switch_user, width=28, **bs).pack(
-            pady=2)
-        tk.Button(self.control_frame, text="🚪 Выход", command=self.on_closing, width=28, **bs).pack(pady=2)
-
-        tk.Label(self.root, textvariable=self.status_var, bd=1, relief=tk.SUNKEN, anchor=tk.W, bg=self.bg_panel,
-                 fg=self.fg_text, font=("Times New Roman", 9)).pack(side=tk.BOTTOM, fill=tk.X)
-
-        self.table_frame = tk.Frame(self.root, bg=self.table_bg);
-        self.table_frame.pack(side="right", expand=True, fill="both", padx=10, pady=10)
-        self.table_frame.rowconfigure(0, weight=1);
+        self.table_frame = tk.Frame(
+            self.main_frame,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        self.table_frame.grid(row=2, column=0, sticky="nsew")
+        self.table_frame.rowconfigure(1, weight=1)
         self.table_frame.columnconfigure(0, weight=1)
-        configure_ttk_style(self.root, self.config["theme"])
-        tc = tk.Frame(self.table_frame, bg=self.table_bg);
-        tc.grid(row=0, column=0, sticky="nsew")
+
+        table_header = tk.Frame(self.table_frame, bg=APP_THEME["surface_soft"])
+        table_header.grid(row=0, column=0, columnspan=2, sticky="ew")
+        table_header.columnconfigure(0, weight=1)
+        tk.Label(
+            table_header,
+            text="Список записей",
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("size", "bold"),
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w", padx=SPACING["md"], pady=SPACING["sm"])
+        tk.Label(
+            table_header,
+            text="Данные сохранены в SQLite",
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small"),
+            anchor="e",
+        ).grid(row=0, column=1, sticky="e", padx=SPACING["md"], pady=SPACING["sm"])
+
+        tc = tk.Frame(self.table_frame, bg=APP_THEME["table_background"])
+        tc.grid(row=1, column=0, sticky="nsew")
         self.tree = ttk.Treeview(tc, show="headings")
         vsb = ttk.Scrollbar(tc, orient="vertical", command=self.tree.yview);
         self.tree.configure(yscrollcommand=vsb.set)
@@ -291,24 +488,48 @@ class DissertationReportApp:
         hsb.grid(row=1, column=0, sticky="ew")
         tc.rowconfigure(0, weight=1);
         tc.columnconfigure(0, weight=1)
+        self.tree.bind("<Button-1>", self.on_tree_click)
 
+    def build_statusbar(self):
+        self.status_frame = tk.Frame(self.root, bg=APP_THEME["surface"], height=28)
+        self.status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        self.status_frame.pack_propagate(False)
+        tk.Label(
+            self.status_frame,
+            textvariable=self.status_var,
+            anchor=tk.W,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small"),
+            padx=SPACING["panel"],
+        ).pack(fill=tk.BOTH, expand=True)
+
+    def bind_shortcuts(self):
         self.root.bind("<Control-o>", lambda e: self.load_excel_async());
         self.root.bind("<Control-f>", lambda e: self.search_entry.focus_set())
         self.root.bind("<Control-s>", lambda e: self.export_excel());
         self.root.bind("<Delete>", lambda e: self.delete_selected());
         self.root.bind("<Control-e>", lambda e: self.edit_selected())
-        self.tree.bind("<Button-1>", self.on_tree_click)
 
     def _on_year_focus_in(self):
         if self.year_entry.get() == "2023 или 2020-2024": self.year_entry.delete(0, tk.END); self.year_entry.config(
-            fg="black")
+            fg=APP_THEME["text"])
 
     def _on_year_focus_out(self):
         if not self.year_entry.get().strip(): self.year_entry.insert(0, "2023 или 2020-2024"); self.year_entry.config(
-            fg="gray")
+            fg=APP_THEME["muted_text"])
 
     def clear_ui(self):
-        for a in ['control_frame', 'table_frame']:
+        frame_names = [
+            "topbar_frame",
+            "content_frame",
+            "control_frame",
+            "main_frame",
+            "toolbar_frame",
+            "table_frame",
+            "status_frame",
+        ]
+        for a in frame_names:
             if hasattr(self, a):
                 w = getattr(self, a)
                 if w and hasattr(w, 'winfo_exists') and w.winfo_exists(): w.destroy()
