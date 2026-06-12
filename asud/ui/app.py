@@ -613,6 +613,7 @@ class DissertationReportApp:
         self.log_action("Завершение");
         if hasattr(self, "storage"):
             self.storage.close()
+        logging.shutdown()
         self.root.destroy()
 
     def process_queue(self):
