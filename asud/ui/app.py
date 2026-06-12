@@ -426,11 +426,25 @@ class DissertationReportApp:
             messagebox.showerror("Ошибка", f"Не удалось загрузить:\n{error}");
             self.log_action(f"Ошибка: {error}")
 
+    def display_empty_state(self, message):
+        if not hasattr(self, 'tree') or self.tree is None:
+            return
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        self.tree["columns"] = ("message",)
+        self.tree.heading("message", text="")
+        self.tree.column("message", width=600, minwidth=300, stretch=True, anchor="center")
+        self.tree.insert("", "end", values=(message,))
+        self.tree.update_idletasks()
+
     def display_data(self):
         if not hasattr(self, 'tree') or self.tree is None: return
         for i in self.tree.get_children(): self.tree.delete(i)
         df = self.data_model.get_filtered_data()
-        if df.empty: self.tree["columns"] = []; return
+        if df.empty:
+            message = "Данные не загружены" if self.data_model.data.empty else "По фильтру ничего не найдено"
+            self.display_empty_state(message)
+            return
         dc = [c for c in df.columns if c != '_original_index'];
         self.tree["columns"] = dc
         dw = self.config.get("default_columns_width", 120)

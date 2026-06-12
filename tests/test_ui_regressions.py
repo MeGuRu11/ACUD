@@ -23,3 +23,11 @@ def test_login_flow_runs_initial_admin_setup_when_user_store_is_empty():
 
     assert "InitialAdminDialog" in app_source
     assert "has_users()" in app_source
+
+
+def test_table_has_explicit_empty_states():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "display_empty_state" in app_source
+    assert "Данные не загружены" in app_source
+    assert "По фильтру ничего не найдено" in app_source
