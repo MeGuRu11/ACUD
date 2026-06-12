@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 def test_users_button_is_stored_for_permission_updates():
-    tree = ast.parse(Path("ASUD.py").read_text(encoding="utf-8"))
+    tree = ast.parse(Path("asud/ui/app.py").read_text(encoding="utf-8"))
 
     assigned_self_attrs = {
         node.targets[0].attr
