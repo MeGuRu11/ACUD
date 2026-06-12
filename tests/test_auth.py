@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from ASUD import UserManager, check_password
+from asud.storage import SQLiteStorage
 
 
 def make_user_manager(tmp_path: Path) -> UserManager:
@@ -42,3 +43,20 @@ def test_admin_self_password_change_requires_current_password(tmp_path):
     assert not ok
     assert message == "Введите текущий пароль"
     assert check_password("admin", manager.users["admin"]["password_hash"])
+
+
+def test_user_manager_can_persist_users_in_sqlite(tmp_path):
+    config = {"users_file": str(tmp_path / "users.json")}
+    storage = SQLiteStorage(tmp_path / "asud.sqlite3")
+    manager = UserManager(config, storage=storage)
+
+    ok, message = manager.add_user("viewer1", "Viewerpass1", "viewer", "Viewer User")
+    assert ok, message
+    storage.close()
+
+    reloaded_storage = SQLiteStorage(tmp_path / "asud.sqlite3")
+    reloaded = UserManager(config, storage=reloaded_storage)
+
+    assert "viewer1" in reloaded.users
+    assert reloaded.users["viewer1"]["role"] == "viewer"
+    reloaded_storage.close()

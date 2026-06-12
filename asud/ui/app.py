@@ -17,6 +17,7 @@ from asud.auth import UserManager
 from asud.config import CONFIG_FILE, DEFAULT_CONFIG
 from asud.data_model import DataModel
 from asud.reports import ReportGenerator
+from asud.storage import SQLiteStorage
 from asud.ui.dialogs import ColumnSelectorDialog, FilterDialog, LoginDialog, RecordDialog, UserManagementDialog
 
 try:
@@ -43,7 +44,13 @@ class DissertationReportApp:
         self.root.configure(bg="#0b2a1b")
         self.config = self.load_config();
         self.setup_logging()
-        self.user_manager = UserManager(self.config);
+        self.storage = SQLiteStorage(self.config["db_path"])
+        self.storage.migrate_from_files(
+            users_file=self.config["users_file"],
+            persistence_file=self.config["persistence_file"],
+            backup_dir=self.config["backup_dir"],
+        )
+        self.user_manager = UserManager(self.config, storage=self.storage);
         self.data_model = DataModel(self.config);
         self.report_gen = ReportGenerator(self.config)
         self.current_user = None;
@@ -59,7 +66,11 @@ class DissertationReportApp:
     def load_config(self):
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                config = json.load(f)
+                loaded = json.load(f)
+            config = DEFAULT_CONFIG.copy()
+            config.update(loaded)
+            if config != loaded:
+                self.save_config(config)
         else:
             config = DEFAULT_CONFIG.copy();
             self.save_config(config)
@@ -85,6 +96,8 @@ class DissertationReportApp:
 
     def log_action(self, action):
         logging.info(f"Пользователь {self.current_user} ({self.current_role}): {action}")
+        if hasattr(self, "storage"):
+            self.storage.append_audit(self.current_user, self.current_role, action)
 
     def backup_data(self):
         if not self.data_model.data.empty:
@@ -93,10 +106,25 @@ class DissertationReportApp:
             self.log_action(f"Бэкап: {bp}")
 
     def save_persisted_data(self):
-        if not self.data_model.data.empty: self.data_model.data.to_csv(self.config["persistence_file"], index=False,
-                                                                       encoding='utf-8')
+        if not self.data_model.data.empty:
+            if hasattr(self, "storage"):
+                self.storage.save_records(self.data_model.data)
+            else:
+                self.data_model.data.to_csv(self.config["persistence_file"], index=False, encoding='utf-8')
 
     def load_persisted_data(self):
+        if hasattr(self, "storage"):
+            df = self.storage.load_records()
+            if not df.empty:
+                if "Год защиты" in df.columns: df["Год защиты"] = pd.to_numeric(df["Год защиты"],
+                                                                                errors="coerce").astype("Int64")
+                df = self.data_model._add_missing_columns(df)
+                self.data_model.data = df.copy();
+                self.data_model.filtered_data = self.data_model.data.copy()
+                self.data_model.apply_filters();
+                self.display_data();
+                self.log_action("Данные загружены")
+                return
         if os.path.exists(self.config["persistence_file"]):
             try:
                 df = pd.read_csv(self.config["persistence_file"], encoding='utf-8')
@@ -542,6 +570,8 @@ class DissertationReportApp:
     def on_closing(self):
         self.save_persisted_data();
         self.log_action("Завершение");
+        if hasattr(self, "storage"):
+            self.storage.close()
         self.root.destroy()
 
     def process_queue(self):

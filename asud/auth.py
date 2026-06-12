@@ -36,26 +36,39 @@ def check_password(password, stored_hash):
 
 
 class UserManager:
-    def __init__(self, config):
+    def __init__(self, config, storage=None):
         self.config = config
         self.users_file = config["users_file"]
+        self.storage = storage
         self.current_user = None
         self.load_users()
 
     def load_users(self):
+        if self.storage is not None:
+            self.users = self.storage.load_users()
+            if self.users:
+                self._ensure_user_defaults()
+                self.save_users()
+            else:
+                self._create_default_admin()
+            return
+
         if os.path.exists(self.users_file):
             try:
                 with open(self.users_file, "r", encoding="utf-8") as f:
                     self.users = json.load(f)
-                for username, data in self.users.items():
-                    for k, v in {"full_name": username, "created_at": datetime.now().isoformat(), "last_login": None,
-                                 "force_password_change": False}.items():
-                        data.setdefault(k, v)
+                self._ensure_user_defaults()
                 self.save_users()
             except (json.JSONDecodeError, IOError):
                 self._create_default_admin()
         else:
             self._create_default_admin()
+
+    def _ensure_user_defaults(self):
+        for username, data in self.users.items():
+            for k, v in {"full_name": username, "created_at": datetime.now().isoformat(), "last_login": None,
+                         "force_password_change": False}.items():
+                data.setdefault(k, v)
 
     def _create_default_admin(self):
         self.users = {"admin": {"password_hash": hash_password("admin"), "role": "admin", "full_name": "Администратор",
@@ -64,6 +77,9 @@ class UserManager:
         self.save_users()
 
     def save_users(self):
+        if self.storage is not None:
+            self.storage.save_users(self.users)
+            return
         os.makedirs(os.path.dirname(self.users_file) if os.path.dirname(self.users_file) else ".", exist_ok=True)
         with open(self.users_file, "w", encoding="utf-8") as f:
             json.dump(self.users, f, indent=2, ensure_ascii=False)
