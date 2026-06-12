@@ -518,6 +518,28 @@ class DissertationReportApp:
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Ошибка удаления: {e}")
 
+    def run_export_task(self, task, success_message, audit_action):
+        self.status_var.set("Экспорт...");
+        self.root.config(cursor="watch")
+
+        def worker():
+            try:
+                task()
+                self.root.after(0, self.export_complete, True, None, success_message, audit_action)
+            except Exception as exc:
+                self.root.after(0, self.export_complete, False, str(exc), success_message, audit_action)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def export_complete(self, success, error, success_message, audit_action):
+        self.status_var.set("Готов")
+        self.root.config(cursor="")
+        if success:
+            messagebox.showinfo("Успех", success_message)
+            self.log_action(audit_action)
+        else:
+            messagebox.showerror("Ошибка", f"Ошибка сохранения: {error}")
+
     def export_excel(self):
         if self.data_model.filtered_data.empty: return messagebox.showwarning("Нет данных")
         ed = self.data_model.filtered_data.drop(columns=['_original_index'], errors='ignore')
@@ -525,14 +547,11 @@ class DissertationReportApp:
         def on_cols(sel):
             fp = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
             if fp:
-                try:
-                    self.report_gen.export_to_excel(ed, fp, sel);
-                    messagebox.showinfo("Успех",
-                                        f"Сохранено: {fp}");
-                    self.log_action(
-                        f"Экспорт Excel: {fp}")
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Ошибка сохранения: {e}")
+                self.run_export_task(
+                    lambda: self.report_gen.export_to_excel(ed, fp, sel),
+                    f"Сохранено: {fp}",
+                    f"Экспорт Excel: {fp}",
+                )
 
         ColumnSelectorDialog(self.root, ed.columns.tolist(), on_cols)
 
@@ -543,15 +562,14 @@ class DissertationReportApp:
         def on_cols(sel):
             fp = filedialog.asksaveasfilename(defaultextension=".docx", filetypes=[("Word", "*.docx")])
             if fp:
-                try:
-                    qt = "поиск по полям: " + " ; ".join(
-                        f"{f}='{v}'" for f, v in self.data_model.filters) if self.data_model.filters else (
-                        f"поиск: «{self.data_model.smart_search_query}»" if self.data_model.smart_search_query else "все записи")
-                    self.report_gen.export_to_word(ed, fp, qt, sel);
-                    messagebox.showinfo("Успех", f"Сохранено: {fp}");
-                    self.log_action(f"Экспорт Word: {fp}")
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Ошибка сохранения: {e}")
+                qt = "поиск по полям: " + " ; ".join(
+                    f"{f}='{v}'" for f, v in self.data_model.filters) if self.data_model.filters else (
+                    f"поиск: «{self.data_model.smart_search_query}»" if self.data_model.smart_search_query else "все записи")
+                self.run_export_task(
+                    lambda: self.report_gen.export_to_word(ed, fp, qt, sel),
+                    f"Сохранено: {fp}",
+                    f"Экспорт Word: {fp}",
+                )
 
         ColumnSelectorDialog(self.root, ed.columns.tolist(), on_cols)
 

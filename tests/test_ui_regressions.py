@@ -31,3 +31,10 @@ def test_table_has_explicit_empty_states():
     assert "display_empty_state" in app_source
     assert "Данные не загружены" in app_source
     assert "По фильтру ничего не найдено" in app_source
+
+
+def test_exports_run_in_background_task():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "run_export_task" in app_source
+    assert "threading.Thread(target=worker, daemon=True).start()" in app_source
