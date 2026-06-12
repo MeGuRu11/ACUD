@@ -178,7 +178,6 @@ class ChangePasswordDialog:
             [len(p) >= 8, bool(re.search(r'[A-ZА-ЯЁ]', p)), bool(re.search(r'[a-zа-яё]', p)), bool(re.search(r'\d', p)),
              bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', p))])
         lv = ["", "Слабый", "Средний", "Хороший", "Отличный", "Максимум"];
-        cl = ["", "#ff6b6b", "#feca57", "#48dbfb", "#1dd1a1", "#00d2d3"]
         self.strength_var.set(f"Сложность: {lv[s]}")
 
     def save(self):
@@ -265,7 +264,6 @@ class RegistrationDialog:
             [len(p) >= 8, bool(re.search(r'[A-ZА-ЯЁ]', p)), bool(re.search(r'[a-zа-яё]', p)), bool(re.search(r'\d', p)),
              bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', p))])
         lv = ["", "Слабый", "Средний", "Хороший", "Отличный", "Максимум"];
-        cl = ["", "#ff6b6b", "#feca57", "#48dbfb", "#1dd1a1", "#00d2d3"]
         self.strength_var.set(f"Сложность: {lv[s]}")
 
     def register(self):

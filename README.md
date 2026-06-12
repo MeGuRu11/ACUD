@@ -26,6 +26,16 @@ pip install -r requirements.txt
 python ASUD.py
 ```
 
+При первом запуске приложение предложит создать администратора. Автоматическая учетная запись `admin/admin` больше не создается.
+
 ## Локальные файлы выполнения
 
-Приложение может создавать `config.json`, `users.json`, `last_data.csv`, `audit.log`, `backups/` и позднее `asud.sqlite3`. Эти файлы содержат локальное состояние и не входят в исходный код проекта.
+Приложение может создавать `config.json`, `asud.sqlite3`, `audit.log` и `backups/`. Старые `users.json` и `last_data.csv`, если они есть, импортируются в SQLite при первом запуске с сохранением копии в `backups/migration_<дата>/`.
+
+## Проверки
+
+```powershell
+pytest
+python -m py_compile ASUD.py asud\*.py asud\ui\*.py
+ruff check .
+```

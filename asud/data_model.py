@@ -25,12 +25,12 @@ class DataModel:
             if 'Int64' in d:
                 try:
                     return int(val)
-                except:
+                except (TypeError, ValueError):
                     return pd.NA
             elif 'Float64' in d:
                 try:
                     return float(val)
-                except:
+                except (TypeError, ValueError):
                     return pd.NA
         return val
 
@@ -71,7 +71,7 @@ class DataModel:
         if len(parts) >= 3 and parts[1].lower() in months:
             try:
                 return datetime(int(parts[2]), int(months[parts[1].lower()]), int(parts[0])).strftime("%d.%m.%Y")
-            except:
+            except (TypeError, ValueError):
                 pass
         return date_str
 
