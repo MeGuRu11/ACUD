@@ -1,0 +1,21 @@
+.mypy_cache/
+__pycache__/
+*.py[cod]
+
+# Local runtime state
+config.json
+users.json
+last_data.csv
+asud.sqlite3
+audit.log
+backups/
+
+# Office temporary files
+~$*
+~WRL*.tmp
+
+# Test/build artifacts
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
