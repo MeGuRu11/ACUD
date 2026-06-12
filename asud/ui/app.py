@@ -554,7 +554,7 @@ class DissertationReportApp:
         q = self.search_entry.get().strip();
         self.data_model.set_smart_search(q);
         self.display_data()
-        self.status_var.set(f"Найдено: {len(self.data_model.filtered_data)}")
+        self.status_var.set(f"Поиск применён. Найдено записей: {len(self.data_model.filtered_data)}")
 
     def simple_search(self):
         q = self.search_entry.get().strip()
@@ -567,7 +567,7 @@ class DissertationReportApp:
             self.data_model.filtered_data['_original_index'] = self.data_model.filtered_data.index
             self.data_model.sort_data()
         self.display_data();
-        self.status_var.set(f"Найдено: {len(self.data_model.filtered_data)}")
+        self.status_var.set(f"Поиск применён. Найдено записей: {len(self.data_model.filtered_data)}")
 
     def open_filter_dialog(self):
         if self.data_model.data.empty: return messagebox.showwarning("Нет данных", "Сначала загрузите данные.")
@@ -576,7 +576,7 @@ class DissertationReportApp:
     def add_filter(self, field, value):
         self.data_model.add_filter(field, value);
         self.display_data()
-        self.status_var.set(f"Фильтр: {len(self.data_model.filtered_data)} записей")
+        self.status_var.set(f"Отбор применён. Найдено записей: {len(self.data_model.filtered_data)}")
 
     def clear_filters(self):
         self.data_model.clear_filters();
@@ -584,7 +584,7 @@ class DissertationReportApp:
         self.year_entry.delete(0, tk.END);
         self._on_year_focus_out()
         self.display_data();
-        self.status_var.set("Фильтры сброшены")
+        self.status_var.set("Отбор сброшен")
 
     def apply_year_filter(self):
         year = self.year_entry.get().strip()
@@ -593,7 +593,7 @@ class DissertationReportApp:
             self.data_model.filters = [(f, v) for f, v in self.data_model.filters if f != "Год защиты"]
             self.data_model.apply_filters();
             self.display_data()
-            self.status_var.set("Фильтр по году снят");
+            self.status_var.set("Отбор по году снят");
             return
         if not re.fullmatch(r'\d{4}([\-:\.]\d{4})?', year): return
         start_year, end_year = self.data_model._parse_year_range(year)
@@ -602,7 +602,7 @@ class DissertationReportApp:
             self.data_model.add_filter("Год защиты", year)
             self.display_data()
             txt = f"Год: {start_year}" if start_year == end_year else f"Годы: {start_year}-{end_year}"
-            self.status_var.set(f"{txt}, записей: {len(self.data_model.filtered_data)}")
+            self.status_var.set(f"{txt}. Найдено записей: {len(self.data_model.filtered_data)}")
 
     def clear_year_filter(self):
         self.year_entry.delete(0, tk.END);
@@ -610,7 +610,7 @@ class DissertationReportApp:
         self.data_model.filters = [(f, v) for f, v in self.data_model.filters if f != "Год защиты"]
         self.data_model.apply_filters();
         self.display_data()
-        self.status_var.set("Фильтр по году снят")
+        self.status_var.set("Отбор по году снят")
 
     def load_excel_async(self):
         if self.current_role not in ("admin", "editor"): return messagebox.showerror("Доступ запрещён",
@@ -618,7 +618,7 @@ class DissertationReportApp:
         fp = filedialog.askopenfilename(title="Выберите Excel", filetypes=[("Excel", "*.xlsx *.xls")])
         if not fp: return
         self.current_filepath = fp;
-        self.status_var.set("Загрузка...");
+        self.status_var.set("Загрузка Excel...");
         self.root.config(cursor="watch");
         self.btn_load.config(state="disabled")
 
@@ -632,7 +632,6 @@ class DissertationReportApp:
         threading.Thread(target=worker, daemon=True).start()
 
     def load_complete(self, success, error, filepath):
-        self.status_var.set("Готов");
         self.root.config(cursor="");
         self.btn_load.config(state="normal")
         if success:
@@ -640,10 +639,12 @@ class DissertationReportApp:
             self.save_persisted_data();
             self.backup_data()
             self.log_action(f"Загружен: {filepath}");
-            messagebox.showinfo("Успех", "Данные загружены!")
+            self.status_var.set(f"Данные загружены и сохранены. Записей: {len(self.data_model.data)}")
+            messagebox.showinfo("Успех", "Данные загружены и сохранены.")
             self.year_entry.delete(0, tk.END);
             self._on_year_focus_out()
         else:
+            self.status_var.set("Ошибка загрузки Excel")
             messagebox.showerror("Ошибка", f"Не удалось загрузить:\n{error}");
             self.log_action(f"Ошибка: {error}")
 
@@ -656,7 +657,23 @@ class DissertationReportApp:
         self.tree.heading("message", text="")
         self.tree.column("message", width=600, minwidth=300, stretch=True, anchor="center")
         self.tree.insert("", "end", values=(message,))
+        self.update_filter_summary()
         self.tree.update_idletasks()
+
+    def update_filter_summary(self):
+        if not hasattr(self, "filter_summary_var"):
+            return
+        if self.data_model.data.empty:
+            self.filter_summary_var.set("Данные не загружены")
+            return
+        found = len(self.data_model.filtered_data)
+        total = len(self.data_model.data)
+        filters = []
+        if self.data_model.smart_search_query:
+            filters.append(f"поиск: {self.data_model.smart_search_query}")
+        filters.extend(f"{field}: {value}" for field, value in self.data_model.filters)
+        suffix = " | " + "; ".join(filters) if filters else ""
+        self.filter_summary_var.set(f"Найдено: {found} из {total}{suffix}")
 
     def display_data(self):
         if not hasattr(self, 'tree') or self.tree is None: return
@@ -680,6 +697,7 @@ class DissertationReportApp:
         for idx, row in df.iterrows():
             oi = row.get('_original_index', idx);
             self.tree.insert("", "end", iid=str(oi), values=[row[c] for c in dc])
+        self.update_filter_summary()
         self.tree.update_idletasks()
 
     def set_sort(self, col):
@@ -740,7 +758,7 @@ class DissertationReportApp:
                 messagebox.showerror("Ошибка", f"Ошибка удаления: {e}")
 
     def run_export_task(self, task, success_message, audit_action):
-        self.status_var.set("Экспорт...");
+        self.status_var.set("Экспорт отчёта...");
         self.root.config(cursor="watch")
 
         def worker():
@@ -753,12 +771,13 @@ class DissertationReportApp:
         threading.Thread(target=worker, daemon=True).start()
 
     def export_complete(self, success, error, success_message, audit_action):
-        self.status_var.set("Готов")
         self.root.config(cursor="")
         if success:
+            self.status_var.set(success_message)
             messagebox.showinfo("Успех", success_message)
             self.log_action(audit_action)
         else:
+            self.status_var.set("Ошибка экспорта отчёта")
             messagebox.showerror("Ошибка", f"Ошибка сохранения: {error}")
 
     def export_excel(self):
@@ -770,7 +789,7 @@ class DissertationReportApp:
             if fp:
                 self.run_export_task(
                     lambda: self.report_gen.export_to_excel(ed, fp, sel),
-                    f"Сохранено: {fp}",
+                    f"Отчёт сохранён: {fp}",
                     f"Экспорт Excel: {fp}",
                 )
 
@@ -788,7 +807,7 @@ class DissertationReportApp:
                     f"поиск: «{self.data_model.smart_search_query}»" if self.data_model.smart_search_query else "все записи")
                 self.run_export_task(
                     lambda: self.report_gen.export_to_word(ed, fp, qt, sel),
-                    f"Сохранено: {fp}",
+                    f"Отчёт сохранён: {fp}",
                     f"Экспорт Word: {fp}",
                 )
 
@@ -812,7 +831,6 @@ class DissertationReportApp:
         sw.title("Статистика");
         sw.geometry("800x600")
 
-        # 🔧 ИСПРАВЛЕНО: Разделили создание канваса и его упаковку
         canvas = FigureCanvasTkAgg(fig, master=sw)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
@@ -826,7 +844,7 @@ class DissertationReportApp:
         if self.ui_built: self.clear_ui(); self.ui_built = False
         self.current_user = None;
         self.current_role = None;
-        self.status_var.set("Готов");
+        self.status_var.set("Готово. Данные будут сохранены в локальную базу SQLite.");
         self.root.after(100, self.show_login)
 
     def on_closing(self):

@@ -58,3 +58,12 @@ def test_main_window_uses_shared_theme_not_legacy_fonts():
     assert 'APP_THEME["topbar"]' in app_source
     assert 'FONT["family"]' in app_source
     assert "Times New Roman" not in app_source
+
+
+def test_ui_uses_clear_workflow_status_texts():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "Данные сохранены" in app_source
+    assert "Загрузка Excel" in app_source
+    assert "Экспорт отчёта" in app_source
+    assert "По фильтру ничего не найдено" in app_source
