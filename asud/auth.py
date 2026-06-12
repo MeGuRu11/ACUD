@@ -49,8 +49,6 @@ class UserManager:
             if self.users:
                 self._ensure_user_defaults()
                 self.save_users()
-            else:
-                self._create_default_admin()
             return
 
         if os.path.exists(self.users_file):
@@ -60,9 +58,9 @@ class UserManager:
                 self._ensure_user_defaults()
                 self.save_users()
             except (json.JSONDecodeError, IOError):
-                self._create_default_admin()
+                self.users = {}
         else:
-            self._create_default_admin()
+            self.users = {}
 
     def _ensure_user_defaults(self):
         for username, data in self.users.items():
@@ -83,6 +81,32 @@ class UserManager:
         os.makedirs(os.path.dirname(self.users_file) if os.path.dirname(self.users_file) else ".", exist_ok=True)
         with open(self.users_file, "w", encoding="utf-8") as f:
             json.dump(self.users, f, indent=2, ensure_ascii=False)
+
+    def has_users(self):
+        return bool(self.users)
+
+    def create_initial_admin(self, username, password, full_name):
+        if self.users:
+            return False, "Пользователи уже существуют"
+        valid, err = self.validate_username(username)
+        if not valid:
+            return False, err
+        valid, err = self.validate_password(password)
+        if not valid:
+            return False, err
+        if len(full_name.strip()) < 2:
+            return False, "Мин. 2 символа для ФИО"
+        self.users[username] = {
+            "password_hash": hash_password(password),
+            "role": "admin",
+            "full_name": full_name.strip(),
+            "created_at": datetime.now().isoformat(),
+            "created_by": "initial_setup",
+            "last_login": None,
+            "force_password_change": False,
+        }
+        self.save_users()
+        return True, "Администратор создан"
 
     def authenticate(self, username, password):
         if username in self.users and check_password(password, self.users[username]["password_hash"]):

@@ -69,6 +69,63 @@ class LoginDialog:
         self.dialog.destroy()
 
 
+class InitialAdminDialog:
+    def __init__(self, parent, user_manager):
+        self.parent, self.user_manager, self.result = parent, user_manager, None
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Первичная настройка")
+        self.dialog.geometry("460x360")
+        self.dialog.configure(bg="#0b2a1b")
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.resizable(False, False)
+
+        tk.Label(self.dialog, text="Создание администратора", font=("Times New Roman", 14, "bold"),
+                 fg="#d4af37", bg="#0b2a1b").pack(pady=(15, 5))
+        tk.Label(self.dialog, text="Задайте учетную запись без использования admin/admin",
+                 font=("Times New Roman", 9), fg="#cccccc", bg="#0b2a1b").pack(pady=(0, 10))
+
+        form = tk.Frame(self.dialog, bg="#0b2a1b")
+        form.pack(pady=5)
+        fields = [("Логин:", "login"), ("Пароль:", "password"), ("Повтор:", "confirm"), ("ФИО:", "fullname")]
+        self.entries = {}
+        for row, (label, key) in enumerate(fields):
+            tk.Label(form, text=label, bg="#0b2a1b", fg="#ffffff").grid(row=row, column=0, padx=10, pady=5, sticky="e")
+            entry = tk.Entry(form, show="*" if key in ("password", "confirm") else "", width=30)
+            entry.grid(row=row, column=1, padx=10, pady=5)
+            self.entries[key] = entry
+        self.entries["login"].insert(0, "admin")
+
+        buttons = tk.Frame(self.dialog, bg="#0b2a1b")
+        buttons.pack(pady=15)
+        tk.Button(buttons, text="Создать", command=self.create, bg="#d4af37", fg="black", width=14,
+                  font=("Times New Roman", 10, "bold")).pack(side="left", padx=10)
+        tk.Button(buttons, text="Отмена", command=self.cancel, bg="#666666", fg="white", width=12).pack(side="left",
+                                                                                                        padx=10)
+        self.entries["password"].focus_set()
+        self.dialog.protocol("WM_DELETE_WINDOW", self.cancel)
+        self.parent.wait_window(self.dialog)
+
+    def create(self):
+        username = self.entries["login"].get().strip()
+        password = self.entries["password"].get()
+        confirm = self.entries["confirm"].get()
+        full_name = self.entries["fullname"].get().strip()
+        if password != confirm:
+            return messagebox.showerror("Ошибка", "Пароли не совпадают")
+        ok, message = self.user_manager.create_initial_admin(username, password, full_name)
+        if ok:
+            self.result = username
+            messagebox.showinfo("Успех", message)
+            self.dialog.destroy()
+        else:
+            messagebox.showerror("Ошибка", message)
+
+    def cancel(self):
+        self.result = None
+        self.dialog.destroy()
+
+
 class ChangePasswordDialog:
     def __init__(self, parent, user_manager, username, is_admin_reset=False):
         self.parent, self.user_manager, self.username, self.is_admin_reset, self.result = parent, user_manager, username, is_admin_reset, None

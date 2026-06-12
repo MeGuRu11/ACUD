@@ -18,7 +18,15 @@ from asud.config import CONFIG_FILE, DEFAULT_CONFIG
 from asud.data_model import DataModel
 from asud.reports import ReportGenerator
 from asud.storage import SQLiteStorage
-from asud.ui.dialogs import ColumnSelectorDialog, FilterDialog, LoginDialog, RecordDialog, UserManagementDialog
+from asud.ui.theme import APP_THEME, WINDOW_MINSIZE, configure_ttk_style
+from asud.ui.dialogs import (
+    ColumnSelectorDialog,
+    FilterDialog,
+    InitialAdminDialog,
+    LoginDialog,
+    RecordDialog,
+    UserManagementDialog,
+)
 
 try:
     from PIL import Image, ImageTk
@@ -41,7 +49,8 @@ class DissertationReportApp:
         self.root = root;
         self.root.title("Автоматизированная система учёта диссертаций | ВМедА им. С.М. Кирова");
         self.root.geometry("1300x700");
-        self.root.configure(bg="#0b2a1b")
+        self.root.minsize(*WINDOW_MINSIZE)
+        self.root.configure(bg=APP_THEME["background"])
         self.config = self.load_config();
         self.setup_logging()
         self.storage = SQLiteStorage(self.config["db_path"])
@@ -140,6 +149,11 @@ class DissertationReportApp:
                 print(f"Ошибка загрузки: {e}")
 
     def show_login(self):
+        if not self.user_manager.has_users():
+            setup = InitialAdminDialog(self.root, self.user_manager)
+            if not setup.result:
+                self.root.destroy()
+                return
         login = LoginDialog(self.root, self.user_manager)
         if login.result:
             self.current_user, self.current_role = login.result
@@ -166,12 +180,12 @@ class DissertationReportApp:
             for b in aa + ea: b.config(state="disabled")
 
     def build_ui(self):
-        self.bg_main = "#0b2a1b";
-        self.bg_panel = "#1a3d2a";
-        self.fg_text = "#ffffff";
-        self.accent = "#d4af37";
-        self.table_bg = "#f8f4e9";
-        self.table_fg = "#000000"
+        self.bg_main = APP_THEME["background"];
+        self.bg_panel = APP_THEME["panel"];
+        self.fg_text = APP_THEME["text"];
+        self.accent = APP_THEME["accent"];
+        self.table_bg = APP_THEME["table_background"];
+        self.table_fg = APP_THEME["table_text"]
         hf = tk.Frame(self.root, bg=self.bg_main);
         hf.pack(fill="x", padx=10, pady=5)
         self.logo_image = None
@@ -195,7 +209,7 @@ class DissertationReportApp:
 
         self.control_frame = tk.Frame(self.root, bg=self.bg_panel, width=320);
         self.control_frame.pack(side="left", fill="y", padx=10, pady=10)
-        bs = {"bg": self.accent, "fg": "black", "font": ("Times New Roman", 10, "bold"), "activebackground": "#b89b2e",
+        bs = {"bg": self.accent, "fg": "black", "font": ("Times New Roman", 10, "bold"), "activebackground": APP_THEME["accent_active"],
               "bd": 2, "relief": "raised"}
         tk.Label(self.control_frame, text="1. Загрузка данных", bg=self.bg_panel, fg=self.fg_text,
                  font=("Times New Roman", 11, "bold")).pack(anchor="w", pady=(0, 5))
@@ -264,12 +278,7 @@ class DissertationReportApp:
         self.table_frame.pack(side="right", expand=True, fill="both", padx=10, pady=10)
         self.table_frame.rowconfigure(0, weight=1);
         self.table_frame.columnconfigure(0, weight=1)
-        style = ttk.Style();
-        style.theme_use(self.config["theme"])
-        style.configure("Treeview", background=self.table_bg, foreground=self.table_fg, fieldbackground=self.table_bg,
-                        font=("Times New Roman", 10), rowheight=25)
-        style.configure("Treeview.Heading", background=self.bg_panel, foreground=self.accent,
-                        font=("Times New Roman", 10, "bold"))
+        configure_ttk_style(self.root, self.config["theme"])
         tc = tk.Frame(self.table_frame, bg=self.table_bg);
         tc.grid(row=0, column=0, sticky="nsew")
         self.tree = ttk.Treeview(tc, show="headings")

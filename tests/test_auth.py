@@ -8,6 +8,26 @@ def make_user_manager(tmp_path: Path) -> UserManager:
     return UserManager({"users_file": str(tmp_path / "users.json")})
 
 
+def test_user_manager_does_not_create_default_admin_password(tmp_path):
+    manager = make_user_manager(tmp_path)
+
+    assert manager.users == {}
+
+
+def test_create_initial_admin_validates_password_and_persists(tmp_path):
+    manager = make_user_manager(tmp_path)
+
+    ok, message = manager.create_initial_admin("admin", "short", "Administrator")
+    assert not ok
+    assert message == "Мин. 8 символов"
+
+    ok, message = manager.create_initial_admin("admin", "Adminpass1", "Administrator")
+
+    assert ok, message
+    assert manager.users["admin"]["role"] == "admin"
+    assert check_password("Adminpass1", manager.users["admin"]["password_hash"])
+
+
 def test_change_password_requires_current_password_for_regular_user(tmp_path):
     manager = make_user_manager(tmp_path)
     ok, message = manager.add_user(
@@ -32,6 +52,8 @@ def test_change_password_requires_current_password_for_regular_user(tmp_path):
 
 def test_admin_self_password_change_requires_current_password(tmp_path):
     manager = make_user_manager(tmp_path)
+    ok, message = manager.create_initial_admin("admin", "Adminpass1", "Administrator")
+    assert ok, message
 
     ok, message = manager.change_password(
         "admin",
@@ -42,7 +64,7 @@ def test_admin_self_password_change_requires_current_password(tmp_path):
 
     assert not ok
     assert message == "Введите текущий пароль"
-    assert check_password("admin", manager.users["admin"]["password_hash"])
+    assert check_password("Adminpass1", manager.users["admin"]["password_hash"])
 
 
 def test_user_manager_can_persist_users_in_sqlite(tmp_path):

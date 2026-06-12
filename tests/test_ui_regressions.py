@@ -16,3 +16,10 @@ def test_users_button_is_stored_for_permission_updates():
     }
 
     assert "btn_users" in assigned_self_attrs
+
+
+def test_login_flow_runs_initial_admin_setup_when_user_store_is_empty():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "InitialAdminDialog" in app_source
+    assert "has_users()" in app_source
