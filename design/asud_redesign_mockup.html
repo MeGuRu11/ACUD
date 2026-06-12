@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>АСУД - концепт интерфейса</title>
+  <style>
+    :root {
+      --bg: #eef2f6;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --ink: #18212f;
+      --muted: #657084;
+      --line: #d9e0ea;
+      --brand: #245c63;
+      --brand-2: #1f7a70;
+      --gold: #b38b24;
+      --danger: #b3343a;
+      --success: #287a4e;
+      --shadow: 0 18px 42px rgba(24, 33, 47, 0.11);
+      --radius: 8px;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 64px 1fr 28px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 280px 1fr auto;
+      align-items: center;
+      gap: 24px;
+      padding: 0 24px;
+      background: #10242d;
+      color: #fff;
+      border-bottom: 3px solid var(--gold);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .seal {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.36);
+      border-radius: 50%;
+      color: #f4d477;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .brand-title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .brand-title strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .brand-title span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #b9c7d6;
+      font-size: 12px;
+    }
+
+    .context {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .context h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .sync-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: max-content;
+      padding: 5px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      color: #c8d7df;
+      font-size: 12px;
+    }
+
+    .sync-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #54c48b;
+    }
+
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+      min-width: 250px;
+    }
+
+    .account-meta {
+      display: grid;
+      gap: 2px;
+      text-align: right;
+      font-size: 12px;
+      color: #c8d7df;
+    }
+
+    .account-meta strong {
+      color: #fff;
+      font-size: 13px;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      background: var(--brand-2);
+      border-radius: 50%;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 276px minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      padding: 18px 16px;
+      background: var(--surface);
+      border-right: 1px solid var(--line);
+    }
+
+    .nav-group {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav-caption {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .nav-button {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      align-items: center;
+      gap: 8px;
+      height: 38px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .nav-button.active {
+      color: #fff;
+      background: var(--brand);
+      border-color: var(--brand);
+    }
+
+    .nav-button.disabled {
+      color: #a7b0bd;
+      background: #f4f6f9;
+    }
+
+    .ico {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: rgba(36, 92, 99, 0.1);
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .active .ico {
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 14px;
+      padding: 18px 22px 16px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .searchbar {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      align-items: center;
+      height: 42px;
+      padding: 0 8px 0 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .searchbar span {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .searchbar input {
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      height: 38px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .btn.primary {
+      color: #fff;
+      background: var(--brand-2);
+      border-color: var(--brand-2);
+    }
+
+    .btn.gold {
+      color: #241b05;
+      background: #e2c164;
+      border-color: #d2ac43;
+    }
+
+    .btn.danger {
+      color: #fff;
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chip strong { color: var(--ink); }
+
+    .workbench {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .table-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+
+    .table-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .table-title strong {
+      font-size: 14px;
+    }
+
+    .table-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .view-switch {
+      display: inline-flex;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+    }
+
+    .view-switch button {
+      height: 28px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .view-switch button.active {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+    }
+
+    th {
+      height: 38px;
+      padding: 0 12px;
+      color: #435167;
+      background: #f3f6fa;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    td {
+      height: 44px;
+      padding: 0 12px;
+      border-bottom: 1px solid #edf1f6;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    tr.selected td {
+      background: #e8f4f1;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #eef4ee;
+      color: var(--success);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .right-rail {
+      grid-column: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 14px;
+      padding: 0;
+      min-width: 0;
+    }
+
+    .side-panel {
+      width: auto;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: grid;
+      gap: 4px;
+      padding: 15px 16px;
+      color: #fff;
+      background: var(--brand);
+    }
+
+    .panel-header strong {
+      font-size: 15px;
+    }
+
+    .panel-header span {
+      color: #c9dde0;
+      font-size: 12px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .field.wide { grid-column: 1 / -1; }
+
+    .field label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .field div {
+      min-height: 34px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .panel-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--surface-soft);
+      border-top: 1px solid var(--line);
+    }
+
+    .login-preview {
+      width: auto;
+      align-self: start;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .login-preview .panel-header {
+      background: #10242d;
+    }
+
+    .login-body {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .statusbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      padding: 0 16px;
+      background: #fff;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .statusbar strong {
+      color: var(--ink);
+    }
+
+    @media (max-width: 980px) {
+      .topbar {
+        grid-template-columns: 1fr;
+        height: auto;
+        padding: 12px;
+      }
+
+      .app-shell {
+        grid-template-rows: auto 1fr 32px;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .side-panel,
+      .login-preview {
+        width: auto;
+      }
+
+      .right-rail {
+        grid-column: 1;
+        grid-template-columns: 1fr;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="seal">АС</div>
+        <div class="brand-title">
+          <strong>АСУД</strong>
+          <span>Военно-медицинская академия им. С.М. Кирова</span>
+        </div>
+      </div>
+      <div class="context">
+        <h1>Реестр диссертаций</h1>
+        <div class="sync-state"><span class="sync-dot"></span> База данных активна</div>
+      </div>
+      <div class="account">
+        <div class="account-meta">
+          <strong>Иванов А.А.</strong>
+          <span>Администратор</span>
+        </div>
+        <div class="avatar">ИА</div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-group">
+          <div class="nav-caption">Данные</div>
+          <button class="nav-button active"><span class="ico">R</span><span>Реестр</span></button>
+          <button class="nav-button"><span class="ico">L</span><span>Загрузить Excel</span></button>
+          <button class="nav-button"><span class="ico">N</span><span>Новая запись</span></button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-caption">Отбор</div>
+          <button class="nav-button"><span class="ico">F</span><span>Расширенный фильтр</span></button>
+          <button class="nav-button"><span class="ico">Y</span><span>Год защиты</span></button>
+          <button class="nav-button"><span class="ico">C</span><span>Сбросить отбор</span></button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-caption">Выгрузка</div>
+          <button class="nav-button"><span class="ico">X</span><span>Excel</span></button>
+          <button class="nav-button"><span class="ico">W</span><span>Word</span></button>
+          <button class="nav-button"><span class="ico">S</span><span>Статистика</span></button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-caption">Администрирование</div>
+          <button class="nav-button"><span class="ico">U</span><span>Пользователи</span></button>
+          <button class="nav-button disabled"><span class="ico">P</span><span>Смена пароля</span></button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section class="toolbar">
+          <label class="searchbar">
+            <span>Q</span>
+            <input value="кардиология 2023" aria-label="Поиск">
+            <button class="btn primary">Найти</button>
+          </label>
+          <div class="actions">
+            <button class="btn">Фильтр</button>
+            <button class="btn">Экспорт</button>
+            <button class="btn gold">Добавить запись</button>
+          </div>
+        </section>
+
+        <section class="chips">
+          <div class="chip">Год: <strong>2020-2024</strong></div>
+          <div class="chip">Степень: <strong>к.м.н.</strong></div>
+          <div class="chip">Найдено: <strong>128</strong></div>
+          <div class="chip">Выбрано: <strong>1</strong></div>
+        </section>
+
+        <section class="workbench">
+          <div class="table-head">
+            <div class="table-title">
+              <strong>Список записей</strong>
+              <span>Последнее сохранение: 12.06.2026 18:20</span>
+            </div>
+            <div class="view-switch">
+              <button class="active">Таблица</button>
+              <button>Карточки</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 19%">ФИО</th>
+                <th style="width: 28%">Название диссертации</th>
+                <th style="width: 12%">Степень</th>
+                <th style="width: 12%">Год защиты</th>
+                <th style="width: 18%">Совет</th>
+                <th style="width: 11%">Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="selected">
+                <td>Петров Сергей Иванович</td>
+                <td>Оптимизация медицинской помощи в условиях...</td>
+                <td>к.м.н.</td>
+                <td>2023</td>
+                <td>21.2.058.04</td>
+                <td><span class="tag">Проверено</span></td>
+              </tr>
+              <tr>
+                <td>Сидорова Анна Павловна</td>
+                <td>Клиническая оценка методов диагностики...</td>
+                <td>д.м.н.</td>
+                <td>2022</td>
+                <td>21.2.058.02</td>
+                <td><span class="tag">Проверено</span></td>
+              </tr>
+              <tr>
+                <td>Кузнецов Максим Олегович</td>
+                <td>Сравнительный анализ реабилитационных...</td>
+                <td>к.м.н.</td>
+                <td>2021</td>
+                <td>21.2.058.01</td>
+                <td><span class="tag">Проверено</span></td>
+              </tr>
+              <tr>
+                <td>Орлова Марина Викторовна</td>
+                <td>Военно-полевая терапия: современные...</td>
+                <td>к.м.н.</td>
+                <td>2020</td>
+                <td>21.2.058.04</td>
+                <td><span class="tag">Проверено</span></td>
+              </tr>
+              <tr>
+                <td>Алексеев Дмитрий Романович</td>
+                <td>Организация профилактики осложнений...</td>
+                <td>д.м.н.</td>
+                <td>2024</td>
+                <td>21.2.058.03</td>
+                <td><span class="tag">Проверено</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+        <section class="right-rail">
+          <section class="side-panel">
+            <div class="panel-header">
+              <strong>Карточка записи</strong>
+              <span>Редактирование без потери незаполненных полей</span>
+            </div>
+            <div class="form-grid">
+              <div class="field wide">
+                <label>ФИО</label>
+                <div>Петров Сергей Иванович</div>
+              </div>
+              <div class="field wide">
+                <label>Название диссертации</label>
+                <div>Оптимизация медицинской помощи в условиях стационара</div>
+              </div>
+              <div class="field">
+                <label>Степень</label>
+                <div>кандидат медицинских наук</div>
+              </div>
+              <div class="field">
+                <label>Дата защиты</label>
+                <div>18.05.2023</div>
+              </div>
+              <div class="field">
+                <label>Диссертационный совет</label>
+                <div>21.2.058.04</div>
+              </div>
+              <div class="field">
+                <label>Год защиты</label>
+                <div>2023</div>
+              </div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn">Отмена</button>
+              <button class="btn primary">Сохранить</button>
+            </div>
+          </section>
+
+          <section class="login-preview">
+            <div class="panel-header">
+              <strong>Вход в систему</strong>
+              <span>Единый стиль для авторизации и смены пароля</span>
+            </div>
+            <div class="login-body">
+              <div class="field">
+                <label>Логин</label>
+                <div>admin</div>
+              </div>
+              <div class="field">
+                <label>Пароль</label>
+                <div>••••••••••</div>
+              </div>
+              <button class="btn primary">Войти</button>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <footer class="statusbar">
+      <span><strong>Готово.</strong> Данные сохранены в SQLite, активен фильтр по году и степени.</span>
+      <span>Версия интерфейса: концепт 1</span>
+    </footer>
+  </div>
+</body>
+</html>
