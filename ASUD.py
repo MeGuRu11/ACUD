@@ -184,14 +184,14 @@ class UserManager:
 
     def change_password(self, username, old_password, new_password, require_old=True):
         if username not in self.users: return False, "Не найден"
-        # ✅ РАЗРЕШЕНО: админ может менять свой пароль без ввода старого
-        if username == "admin" and require_old:
-            require_old = False
-        if require_old and old_password and not check_password(old_password, self.users[username]["password_hash"]):
-            return False, "Неверный текущий пароль"
+        if require_old:
+            if not old_password:
+                return False, "Введите текущий пароль"
+            if not check_password(old_password, self.users[username]["password_hash"]):
+                return False, "Неверный текущий пароль"
         valid, err = self.validate_password(new_password)
         if not valid: return False, err
-        if old_password and check_password(new_password, self.users[username]["password_hash"]):
+        if check_password(new_password, self.users[username]["password_hash"]):
             return False, "Пароли совпадают"
         self.users[username]["password_hash"] = hash_password(new_password)
         self.users[username]["force_password_change"] = False
@@ -1366,7 +1366,9 @@ class DissertationReportApp:
         if MATPLOTLIB_AVAILABLE: self.btn_stats = tk.Button(self.control_frame, text="Статистика",
                                                             command=self.show_statistics, width=28,
                                                             **bs); self.btn_stats.pack(pady=2)
-        tk.Button(self.control_frame, text="👥 Пользователи", command=self.manage_users, width=28, **bs).pack(pady=2)
+        self.btn_users = tk.Button(self.control_frame, text="👥 Пользователи", command=self.manage_users, width=28,
+                                   **bs)
+        self.btn_users.pack(pady=2)
         tk.Button(self.control_frame, text="🔄 Сменить пользователя", command=self.switch_user, width=28, **bs).pack(
             pady=2)
         tk.Button(self.control_frame, text="🚪 Выход", command=self.on_closing, width=28, **bs).pack(pady=2)
