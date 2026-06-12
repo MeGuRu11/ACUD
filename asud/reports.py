@@ -1,6 +1,7 @@
 """Excel and Word report generation."""
 
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 from docx import Document
@@ -15,8 +16,38 @@ class ReportGenerator:
     def __init__(self, config):
         self.config = config
 
+    @staticmethod
+    def _select_columns(df, selected_columns):
+        if selected_columns is None:
+            return df
+        if not selected_columns:
+            raise ValueError("Выберите хотя бы одну колонку")
+        return df[selected_columns]
+
+    @staticmethod
+    def calculate_word_column_widths(columns, total_width_cm=26.7):
+        weights = {
+            'ФИО': 1.4,
+            'Диссертационный совет': 1.3,
+            'Название диссертации': 2.5,
+            'Дата защиты диссертации': 1.0,
+            'Специальность': 1.1,
+            '1 Научный руководитель (консультант)': 1.5,
+            '2 Научный руководитель (консультант)': 1.5,
+            'Год защиты': 0.7,
+            'Искомая степень': 1.2,
+            'Информация о лишении степени': 1.6,
+            'Примечания': 1.5,
+        }
+        selected_weights = [weights.get(column, 1.0) for column in columns]
+        total_weight = sum(selected_weights) or 1
+        return {
+            column: total_width_cm * weight / total_weight
+            for column, weight in zip(columns, selected_weights)
+        }
+
     def export_to_excel(self, df, filepath, selected_columns=None):
-        if selected_columns: df = df[selected_columns]
+        df = self._select_columns(df, selected_columns)
         with pd.ExcelWriter(filepath, engine='openpyxl') as w:
             df.to_excel(w, sheet_name='Отчёт', index=False)
             ws = w.sheets['Отчёт']
@@ -31,18 +62,21 @@ class ReportGenerator:
     def _remove_cell_borders(self, cell):
         try:
             tc = cell._element
-            tcPr = tc.tcPr or OxmlElement('w:tcPr') or tc.append(OxmlElement('w:tcPr'))
-            borders = tcPr.find(qn('w:tcBorders')) or tcPr.append(OxmlElement('w:tcBorders'))
+            tcPr = tc.get_or_add_tcPr()
+            borders = tcPr.find(qn('w:tcBorders'))
+            if borders is None:
+                borders = OxmlElement('w:tcBorders')
+                tcPr.append(borders)
             for n in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
                 b = borders.find(qn(f'w:{n}'))
                 if b is not None: borders.remove(b)
-        except:
-            pass
+        except (AttributeError, TypeError):
+            return
 
     def export_to_word(self, df, filepath, query_text="", selected_columns=None, template_path=None):
         from docx.enum.section import WD_SECTION, WD_ORIENT
-        if selected_columns: df = df[selected_columns]
-        doc = Document()
+        df = self._select_columns(df, selected_columns)
+        doc = Document(template_path) if template_path and Path(template_path).exists() else Document()
         s = doc.sections[0];
         s.page_height = Cm(29.7);
         s.page_width = Cm(21);
@@ -135,17 +169,13 @@ class ReportGenerator:
             tbl = doc.add_table(1, len(dc));
             tbl.style = 'Table Grid';
             tbl.autofit = False
-            cw = {'ФИО': Cm(4), 'Диссертационный совет': Cm(3.5), 'Название диссертации': Cm(7),
-                  'Дата защиты диссертации': Cm(2.5), 'Специальность': Cm(3),
-                  '1 Научный руководитель (консультант)': Cm(4), '2 Научный руководитель (консультант)': Cm(4),
-                  'Год защиты': Cm(1.5), 'Искомая степень': Cm(3.5), 'Информация о лишении степени': Cm(4),
-                  'Примечания': Cm(4)}
+            cw = self.calculate_word_column_widths(dc, total_width_cm=26.7)
             for i, c in enumerate(dc):
                 tbl.rows[0].cells[i].text = c
                 for p in tbl.rows[0].cells[
                     i].paragraphs: p.alignment = WD_ALIGN_PARAGRAPH.CENTER; p.paragraph_format.space_after = Pt(2)
                 for r in p.runs: r.font.name = 'Times New Roman'; r.font.size = Pt(9); r.bold = True
-                tbl.rows[0].cells[i].width = cw.get(c, Cm(3))
+                tbl.rows[0].cells[i].width = Cm(cw.get(c, 3))
             for _, row in df.iterrows():
                 rc = tbl.add_row().cells
                 for i, c in enumerate(dc):
