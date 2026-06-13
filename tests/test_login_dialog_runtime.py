@@ -1,4 +1,5 @@
 import tkinter as tk
+from datetime import datetime
 
 import pytest
 
@@ -8,6 +9,12 @@ from asud.ui import dialogs
 class FakeUserManager:
     def authenticate(self, username, password):
         return False, None, None
+
+
+class FixedDateTime(datetime):
+    @classmethod
+    def now(cls):
+        return cls(2026, 6, 13, 9, 10, 31)
 
 
 def test_login_dialog_centers_real_requested_window_size(monkeypatch):
@@ -60,4 +67,28 @@ def test_dialog_fields_bind_clipboard_shortcuts():
             assert entry.bind(sequence), sequence
     finally:
         dialog.dialog.destroy()
+        root.destroy()
+
+
+def test_login_dialog_clock_widget_uses_required_formats(monkeypatch):
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+
+    def no_wait(self, on_close):
+        self.dialog.protocol("WM_DELETE_WINDOW", on_close)
+        self.center_on_screen()
+
+    monkeypatch.setattr(dialogs.DialogBase, "wait", no_wait)
+    monkeypatch.setattr(dialogs, "datetime", FixedDateTime)
+    login = dialogs.LoginDialog(root, FakeUserManager())
+
+    try:
+        assert login.login_clock_date_var.get() == "13.06.2026"
+        assert login.login_clock_time_var.get() == "09:10:31"
+        assert login.clock_after_id is not None
+    finally:
+        login.dialog.destroy()
         root.destroy()

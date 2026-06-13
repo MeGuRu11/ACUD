@@ -2,6 +2,7 @@
 
 import re
 import tkinter as tk
+from datetime import datetime
 from tkinter import messagebox, ttk
 
 import pandas as pd
@@ -9,7 +10,7 @@ import pandas as pd
 from asud.config import APP_ICON_SVG, DEGREE_OPTIONS
 from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, configure_ttk_style
 
-LOGIN_DIALOG_SIZE = "520x440"
+LOGIN_DIALOG_SIZE = "520x480"
 
 
 def ui_font(size_key="size", weight=None):
@@ -204,6 +205,7 @@ class LoginDialog(DialogBase):
     def __init__(self, parent, user_manager):
         self.user_manager = user_manager
         self.icon_asset_path = APP_ICON_SVG
+        self.clock_after_id = None
         self.result = None
         super().__init__(parent, "Вход в систему", LOGIN_DIALOG_SIZE)
         self.build_login_card()
@@ -212,7 +214,7 @@ class LoginDialog(DialogBase):
         self.wait(self.cancel)
 
     def build_login_card(self):
-        hero = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=156)
+        hero = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=188)
         hero.pack(fill="x")
         hero.pack_propagate(False)
 
@@ -253,6 +255,7 @@ class LoginDialog(DialogBase):
             anchor="center",
             justify="center",
         ).pack(fill="x", padx=SPACING["lg"], pady=(4, 0))
+        self.build_clock_widget(hero)
 
         body = self.body_frame(padx=SPACING["lg"], pady=SPACING["lg"])
         card = tk.Frame(
@@ -291,6 +294,57 @@ class LoginDialog(DialogBase):
             cursor="hand2",
         ).pack(anchor="w", padx=SPACING["panel"], pady=(0, SPACING["panel"]))
 
+    def build_clock_widget(self, parent):
+        self.login_clock_date_var = tk.StringVar()
+        self.login_clock_time_var = tk.StringVar()
+        clock_frame = tk.Frame(parent, bg=APP_THEME["topbar"])
+        clock_frame.pack(anchor="center", pady=(SPACING["sm"], 0))
+
+        clock_shell = tk.Frame(
+            clock_frame,
+            bg="#16323c",
+            highlightbackground=APP_THEME["primary_alt"],
+            highlightthickness=1,
+        )
+        clock_shell.pack(anchor="center")
+        tk.Label(
+            clock_shell,
+            textvariable=self.login_clock_date_var,
+            bg="#16323c",
+            fg=APP_THEME["topbar_text"],
+            font=ui_font("small", "bold"),
+        ).pack(side="left", padx=(SPACING["md"], SPACING["xs"]), pady=SPACING["xs"])
+        tk.Label(
+            clock_shell,
+            text="|",
+            bg="#16323c",
+            fg=APP_THEME["topbar_muted"],
+            font=ui_font("small"),
+        ).pack(side="left", pady=SPACING["xs"])
+        tk.Label(
+            clock_shell,
+            textvariable=self.login_clock_time_var,
+            bg="#16323c",
+            fg=APP_THEME["accent_soft"],
+            font=ui_font("small", "bold"),
+        ).pack(side="left", padx=(SPACING["xs"], SPACING["md"]), pady=SPACING["xs"])
+        self.update_clock()
+
+    def update_clock(self):
+        now = datetime.now()
+        self.login_clock_date_var.set(now.strftime("%d.%m.%Y"))
+        self.login_clock_time_var.set(now.strftime("%H:%M:%S"))
+        self.clock_after_id = self.dialog.after(1000, self.update_clock)
+
+    def stop_clock(self):
+        if not self.clock_after_id:
+            return
+        try:
+            self.dialog.after_cancel(self.clock_after_id)
+        except tk.TclError:
+            pass
+        self.clock_after_id = None
+
     def open_registration(self):
         registration = RegistrationDialog(self.dialog, self.user_manager)
         if registration.result:
@@ -310,12 +364,14 @@ class LoginDialog(DialogBase):
                 if not password_dialog.result:
                     return
             self.result = (username, role)
+            self.stop_clock()
             self.dialog.destroy()
         else:
             messagebox.showerror("Ошибка", "Неверный логин или пароль")
 
     def cancel(self):
         self.result = None
+        self.stop_clock()
         self.dialog.destroy()
 
 

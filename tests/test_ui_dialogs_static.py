@@ -24,7 +24,7 @@ def test_login_dialog_has_centered_polished_auth_layout():
     source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
 
     assert "LOGIN_DIALOG_SIZE" in source
-    assert "520x440" in source
+    assert "520x480" in source
     assert "center_on_screen" in source
     assert "build_login_card" in source
     assert "Добро пожаловать" in source
@@ -46,3 +46,15 @@ def test_login_dialog_centers_brand_and_buttons_and_enables_clipboard_shortcuts(
     assert "<<Paste>>" in source
     assert "<<Copy>>" in source
     assert "<<Cut>>" in source
+
+
+def test_login_dialog_has_live_date_time_widget():
+    source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+
+    assert "build_clock_widget" in source
+    assert "update_clock" in source
+    assert "login_clock_date_var" in source
+    assert "login_clock_time_var" in source
+    assert 'strftime("%d.%m.%Y")' in source
+    assert 'strftime("%H:%M:%S")' in source
+    assert "self.dialog.after(1000, self.update_clock)" in source
