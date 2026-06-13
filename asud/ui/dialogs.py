@@ -11,7 +11,7 @@ import pandas as pd
 from asud.config import APP_ICON_PNG, APP_ICON_SVG, DEGREE_OPTIONS
 from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, configure_ttk_style
 
-LOGIN_DIALOG_SIZE = "520x500"
+LOGIN_DIALOG_SIZE = "560x540"
 
 
 def ui_font(size_key="size", weight=None):
@@ -291,22 +291,24 @@ class LoginDialog(DialogBase):
         self.wait(self.cancel)
 
     def build_login_card(self):
-        self.hero_frame = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=210)
+        self.hero_frame = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=232)
         self.hero_frame.pack(fill="x")
         self.hero_frame.pack_propagate(False)
 
         self.build_clock_widget(self.hero_frame)
+        brand_stack = tk.Frame(self.hero_frame, bg=APP_THEME["topbar"])
+        brand_stack.pack(fill="x", pady=(SPACING["lg"], 0))
         self.login_icon_label = tk.Label(
-            self.hero_frame,
+            brand_stack,
             image=self.load_login_icon(),
             bg=APP_THEME["topbar"],
             bd=0,
             highlightthickness=0,
         )
-        self.login_icon_label.pack(anchor="center", pady=(SPACING["md"], SPACING["xs"]))
+        self.login_icon_label.pack(anchor="center", pady=(0, SPACING["xs"]))
 
         tk.Label(
-            self.hero_frame,
+            brand_stack,
             text="АСУД",
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_text"],
@@ -332,42 +334,42 @@ class LoginDialog(DialogBase):
             justify="center",
         ).pack(fill="x", padx=SPACING["lg"], pady=(4, 0))
 
-        body = self.body_frame(padx=SPACING["lg"], pady=SPACING["lg"])
-        card = tk.Frame(
+        body = tk.Frame(self.dialog, bg=APP_THEME["surface"])
+        body.pack(fill="x", padx=SPACING["lg"], pady=SPACING["lg"])
+        self.login_form_card = tk.Frame(
             body,
             bg=APP_THEME["surface"],
             highlightbackground=APP_THEME["line"],
             highlightthickness=1,
         )
-        card.pack(fill="both", expand=True)
-        card.columnconfigure(0, weight=1)
+        self.login_form_card.pack(fill="x")
+        self.login_form_card.columnconfigure(0, weight=1)
 
-        form = self.form_frame(card)
-        form.pack(fill="x", padx=SPACING["panel"], pady=(SPACING["panel"], SPACING["sm"]))
+        form = self.form_frame(self.login_form_card)
+        form.pack(fill="x", padx=SPACING["lg"], pady=(SPACING["lg"], SPACING["sm"]))
         self.entry_login = self.add_field(form, 0, "Логин")
         self.entry_password = self.add_field(form, 1, "Пароль", show="*")
+        self.credential_hint = tk.Label(
+            self.login_form_card,
+            text="Учётные записи создаются администратором в разделе «Пользователи».",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small"),
+            anchor="w",
+            justify="left",
+            wraplength=460,
+        )
+        self.credential_hint.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["lg"]))
 
         footer = self.add_footer()
         button_row = tk.Frame(footer, bg=APP_THEME["surface_soft"])
-        button_row.pack(anchor="center", pady=SPACING["md"])
-        create_dialog_button(button_row, "Войти", self.login, width=16).pack(
+        button_row.pack(anchor="center", pady=SPACING["panel"])
+        create_dialog_button(button_row, "Войти", self.login, width=18).pack(
             side="left", padx=(0, SPACING["sm"])
         )
-        create_dialog_button(button_row, "Отмена", self.cancel, variant="secondary", width=14).pack(
+        create_dialog_button(button_row, "Отмена", self.cancel, variant="secondary", width=18).pack(
             side="left", padx=(SPACING["sm"], 0)
         )
-        tk.Button(
-            card,
-            text="Зарегистрировать нового пользователя",
-            command=self.open_registration,
-            bg=APP_THEME["surface"],
-            fg=APP_THEME["primary"],
-            activebackground=APP_THEME["surface_soft"],
-            activeforeground=APP_THEME["primary"],
-            font=ui_font("small", "bold"),
-            relief="flat",
-            cursor="hand2",
-        ).pack(anchor="w", padx=SPACING["panel"], pady=(0, SPACING["panel"]))
 
     def resolve_asset_path(self, path):
         asset_path = Path(path)
@@ -439,11 +441,6 @@ class LoginDialog(DialogBase):
         except tk.TclError:
             pass
         self.clock_after_id = None
-
-    def open_registration(self):
-        registration = RegistrationDialog(self.dialog, self.user_manager)
-        if registration.result:
-            self.entry_login.focus_set()
 
     def login(self):
         username = self.entry_login.get().strip()

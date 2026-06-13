@@ -24,13 +24,15 @@ def test_login_dialog_has_centered_polished_auth_layout():
     source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
 
     assert "LOGIN_DIALOG_SIZE" in source
-    assert "520x500" in source
+    assert "560x540" in source
     assert "center_on_screen" in source
     assert "build_login_card" in source
     assert "Добро пожаловать" in source
     assert "АСУД" in source
     assert "self.dialog.lift()" in source
     assert "self.entry_login.focus_set()" in source
+    assert "login_form_card" in source
+    assert "credential_hint" in source
 
 
 def test_login_dialog_centers_brand_and_buttons_and_enables_clipboard_shortcuts():
@@ -51,6 +53,15 @@ def test_login_dialog_centers_brand_and_buttons_and_enables_clipboard_shortcuts(
     assert "copy_entry_selection" in source
     assert "cut_entry_selection" in source
     assert "<Control-KeyPress>" in source
+
+
+def test_login_dialog_has_no_self_registration_entrypoint():
+    source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+    login_source = source[source.index("class LoginDialog"):source.index("class InitialAdminDialog")]
+
+    assert "Зарегистрировать нового пользователя" not in login_source
+    assert "open_registration" not in login_source
+    assert "RegistrationDialog" not in login_source
 
 
 def test_login_dialog_has_live_date_time_widget():

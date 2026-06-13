@@ -41,10 +41,45 @@ def test_login_dialog_centers_real_requested_window_size(monkeypatch):
     expected_y = (login.dialog.winfo_screenheight() - height) // 2
 
     try:
-        assert width >= 500, geometry
-        assert height >= 420, geometry
+        assert 540 <= width <= 590, geometry
+        assert 500 <= height <= 570, geometry
         assert abs(x - expected_x) <= 2, geometry
         assert abs(y - expected_y) <= 2, geometry
+    finally:
+        login.dialog.destroy()
+        root.destroy()
+
+
+def test_login_dialog_does_not_render_registration_button(monkeypatch):
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+
+    def no_wait(self, on_close):
+        self.dialog.protocol("WM_DELETE_WINDOW", on_close)
+        self.center_on_screen()
+
+    monkeypatch.setattr(dialogs.DialogBase, "wait", no_wait)
+    login = dialogs.LoginDialog(root, FakeUserManager())
+
+    def collect_texts(widget):
+        texts = []
+        try:
+            text = widget.cget("text")
+            if text:
+                texts.append(text)
+        except tk.TclError:
+            pass
+        for child in widget.winfo_children():
+            texts.extend(collect_texts(child))
+        return texts
+
+    try:
+        texts = collect_texts(login.dialog)
+        assert "Зарегистрировать нового пользователя" not in texts
+        assert not hasattr(login, "open_registration")
     finally:
         login.dialog.destroy()
         root.destroy()
