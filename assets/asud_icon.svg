@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="АСУД">
+  <defs>
+    <linearGradient id="bgGradient" x1="32" y1="20" x2="224" y2="236" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b2f3a"/>
+      <stop offset="0.58" stop-color="#168173"/>
+      <stop offset="1" stop-color="#d8a520"/>
+    </linearGradient>
+    <linearGradient id="shieldGradient" x1="78" y1="55" x2="178" y2="182" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fbfc"/>
+      <stop offset="1" stop-color="#d8e8eb"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#06191f" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect x="16" y="16" width="224" height="224" rx="42" fill="url(#bgGradient)"/>
+  <path d="M40 187C83 210 159 215 216 165V214C216 225 207 234 196 234H61C49 234 40 225 40 214V187Z" fill="#062630" opacity="0.32"/>
+
+  <g id="shield" filter="url(#softShadow)">
+    <path d="M128 42L184 62V112C184 150 159 181 128 195C97 181 72 150 72 112V62L128 42Z" fill="url(#shieldGradient)"/>
+    <path d="M128 57L169 72V112C169 140 153 164 128 178C103 164 87 140 87 112V72L128 57Z" fill="#ffffff"/>
+    <path d="M118 82H138V111H166V131H138V160H118V131H90V111H118V82Z" fill="#168173"/>
+    <path d="M103 96H153" stroke="#0b2f3a" stroke-width="8" stroke-linecap="round" opacity="0.16"/>
+  </g>
+
+  <text x="128" y="222" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#ffffff">АСУД</text>
+</svg>

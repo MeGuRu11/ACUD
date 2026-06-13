@@ -6,7 +6,7 @@ from tkinter import messagebox, ttk
 
 import pandas as pd
 
-from asud.config import DEGREE_OPTIONS
+from asud.config import APP_ICON_SVG, DEGREE_OPTIONS
 from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, configure_ttk_style
 
 LOGIN_DIALOG_SIZE = "520x440"
@@ -42,6 +42,25 @@ def create_dialog_button(parent, text, command, variant="primary", width=14):
         pady=SPACING["sm"],
     )
     return button
+
+
+def enable_entry_shortcuts(entry):
+    shortcuts = {
+        "<Control-v>": "<<Paste>>",
+        "<Control-V>": "<<Paste>>",
+        "<Control-c>": "<<Copy>>",
+        "<Control-C>": "<<Copy>>",
+        "<Control-x>": "<<Cut>>",
+        "<Control-X>": "<<Cut>>",
+    }
+
+    for sequence, virtual_event in shortcuts.items():
+        def handle(event, event_name=virtual_event):
+            event.widget.event_generate(event_name)
+            return "break"
+
+        entry.bind(sequence, handle)
+    return entry
 
 
 class DialogBase:
@@ -127,6 +146,7 @@ class DialogBase:
         entry.grid(row=row, column=1, padx=0, pady=SPACING["sm"], sticky="ew")
         if initial:
             entry.insert(0, initial)
+        enable_entry_shortcuts(entry)
         return entry
 
     def add_combobox(self, form, row, label, values, initial="", state="readonly", width=28):
@@ -183,6 +203,7 @@ class DialogBase:
 class LoginDialog(DialogBase):
     def __init__(self, parent, user_manager):
         self.user_manager = user_manager
+        self.icon_asset_path = APP_ICON_SVG
         self.result = None
         super().__init__(parent, "Вход в систему", LOGIN_DIALOG_SIZE)
         self.build_login_card()
@@ -191,47 +212,47 @@ class LoginDialog(DialogBase):
         self.wait(self.cancel)
 
     def build_login_card(self):
-        hero = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=140)
+        hero = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=156)
         hero.pack(fill="x")
         hero.pack_propagate(False)
 
-        badge = tk.Frame(hero, bg=APP_THEME["primary_alt"], width=52, height=52)
-        badge.pack(side="left", padx=(SPACING["lg"], SPACING["panel"]), pady=SPACING["lg"])
-        badge.pack_propagate(False)
+        icon_box = tk.Frame(hero, bg=APP_THEME["primary_alt"], width=56, height=56)
+        icon_box.pack(anchor="center", pady=(SPACING["panel"], SPACING["sm"]))
+        icon_box.pack_propagate(False)
         tk.Label(
-            badge,
+            icon_box,
             text="АС",
             bg=APP_THEME["primary_alt"],
             fg=APP_THEME["topbar_text"],
             font=ui_font("heading", "bold"),
         ).pack(expand=True)
 
-        hero_text = tk.Frame(hero, bg=APP_THEME["topbar"])
-        hero_text.pack(side="left", fill="both", expand=True, pady=SPACING["lg"], padx=(0, SPACING["lg"]))
         tk.Label(
-            hero_text,
+            hero,
             text="АСУД",
             bg=APP_THEME["topbar"],
-            fg=APP_THEME["topbar_muted"],
-            font=ui_font("small", "bold"),
-            anchor="w",
-        ).pack(fill="x", pady=(0, 2))
+            fg=APP_THEME["topbar_text"],
+            font=(FONT["family"], 24, "bold"),
+            anchor="center",
+        ).pack(fill="x", padx=SPACING["lg"])
         tk.Label(
-            hero_text,
+            hero,
             text="Добро пожаловать",
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_text"],
-            font=(FONT["family"], 22, "bold"),
-            anchor="w",
-        ).pack(fill="x")
+            font=ui_font("small", "bold"),
+            anchor="center",
+            justify="center",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(2, 0))
         tk.Label(
-            hero_text,
-            text="Войдите, чтобы работать с реестром диссертаций.",
+            hero,
+            text="Вход в реестр диссертаций",
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_muted"],
             font=ui_font("size"),
-            anchor="w",
-        ).pack(fill="x", pady=(4, 0))
+            anchor="center",
+            justify="center",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(4, 0))
 
         body = self.body_frame(padx=SPACING["lg"], pady=SPACING["lg"])
         card = tk.Frame(
@@ -249,11 +270,13 @@ class LoginDialog(DialogBase):
         self.entry_password = self.add_field(form, 1, "Пароль", show="*")
 
         footer = self.add_footer()
-        create_dialog_button(footer, "Войти", self.login, width=16).pack(
-            side="left", padx=SPACING["lg"], pady=SPACING["md"]
+        button_row = tk.Frame(footer, bg=APP_THEME["surface_soft"])
+        button_row.pack(anchor="center", pady=SPACING["md"])
+        create_dialog_button(button_row, "Войти", self.login, width=16).pack(
+            side="left", padx=(0, SPACING["sm"])
         )
-        create_dialog_button(footer, "Отмена", self.cancel, variant="secondary").pack(
-            side="left", padx=(0, SPACING["sm"]), pady=SPACING["md"]
+        create_dialog_button(button_row, "Отмена", self.cancel, variant="secondary", width=14).pack(
+            side="left", padx=(SPACING["sm"], 0)
         )
         tk.Button(
             card,

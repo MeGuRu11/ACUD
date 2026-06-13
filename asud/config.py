@@ -3,6 +3,8 @@
 CONFIG_FILE = "config.json"
 DEFAULT_CONFIG = {
     "logo_path": "logo.png",
+    "app_icon_svg": "assets/asud_icon.svg",
+    "app_icon_png": "assets/asud_icon.png",
     "persistence_file": "last_data.csv",
     "audit_log": "audit.log",
     "backup_dir": "backups",
@@ -12,6 +14,8 @@ DEFAULT_CONFIG = {
     "theme": "clam",
     "db_path": "asud.sqlite3",
 }
+APP_ICON_SVG = DEFAULT_CONFIG["app_icon_svg"]
+APP_ICON_PNG = DEFAULT_CONFIG["app_icon_png"]
 REQUIRED_COLUMNS = [
     "ФИО",
     "Название диссертации",

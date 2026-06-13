@@ -31,3 +31,18 @@ def test_login_dialog_has_centered_polished_auth_layout():
     assert "АСУД" in source
     assert "self.dialog.lift()" in source
     assert "self.entry_login.focus_set()" in source
+
+
+def test_login_dialog_centers_brand_and_buttons_and_enables_clipboard_shortcuts():
+    source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+
+    assert "APP_ICON_SVG" in source
+    assert "icon_box.pack(anchor=\"center\"" in source
+    assert "text=\"АСУД\"" in source
+    assert "anchor=\"center\"" in source
+    assert "button_row" in source
+    assert "justify=\"center\"" in source
+    assert "enable_entry_shortcuts" in source
+    assert "<<Paste>>" in source
+    assert "<<Copy>>" in source
+    assert "<<Cut>>" in source

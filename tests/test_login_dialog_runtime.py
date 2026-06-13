@@ -41,3 +41,23 @@ def test_login_dialog_centers_real_requested_window_size(monkeypatch):
     finally:
         login.dialog.destroy()
         root.destroy()
+
+
+def test_dialog_fields_bind_clipboard_shortcuts():
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+
+    dialog = dialogs.DialogBase(root, "Test", "320x180")
+    body = dialog.body_frame()
+    form = dialog.form_frame(body)
+    entry = dialog.add_field(form, 0, "Логин")
+
+    try:
+        for sequence in ["<Control-v>", "<Control-V>", "<Control-c>", "<Control-C>", "<Control-x>", "<Control-X>"]:
+            assert entry.bind(sequence), sequence
+    finally:
+        dialog.dialog.destroy()
+        root.destroy()

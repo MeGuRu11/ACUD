@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 
 from asud.auth import UserManager
-from asud.config import CONFIG_FILE, DEFAULT_CONFIG
+from asud.config import APP_ICON_PNG, CONFIG_FILE, DEFAULT_CONFIG
 from asud.data_model import DataModel
 from asud.reports import ReportGenerator
 from asud.storage import SQLiteStorage
@@ -48,9 +48,10 @@ class DissertationReportApp:
     def __init__(self, root):
         self.root = root;
         self.root.title("Автоматизированная система учёта диссертаций | ВМедА им. С.М. Кирова");
-        self.root.geometry("1360x820");
+        self.center_root_window(1360, 820);
         self.root.minsize(*WINDOW_MINSIZE)
         self.root.configure(bg=APP_THEME["app_background"])
+        self.set_app_icon()
         self.config = self.load_config();
         self.setup_logging()
         self.storage = SQLiteStorage(self.config["db_path"])
@@ -71,6 +72,25 @@ class DissertationReportApp:
         self.root.after(100, self.process_queue);
         self.ui_built = False;
         self.root.after(100, self.show_login)
+
+    def center_root_window(self, width, height):
+        self.root.deiconify()
+        self.root.update_idletasks()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = max(0, (screen_width - width) // 2)
+        y = max(0, (screen_height - height) // 2)
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+
+    def set_app_icon(self):
+        self.app_icon_image = None
+        if not os.path.exists(APP_ICON_PNG):
+            return
+        try:
+            self.app_icon_image = tk.PhotoImage(file=APP_ICON_PNG)
+            self.root.iconphoto(True, self.app_icon_image)
+        except tk.TclError as exc:
+            print(f"Иконка приложения не загружена: {exc}")
 
     def load_config(self):
         if os.path.exists(CONFIG_FILE):
@@ -469,7 +489,7 @@ class DissertationReportApp:
         ).grid(row=0, column=0, sticky="w", padx=SPACING["md"], pady=SPACING["sm"])
         tk.Label(
             table_header,
-            text="Данные сохранены в SQLite",
+            text="Данные сохранены в Базе Данных",
             bg=APP_THEME["surface_soft"],
             fg=APP_THEME["muted_text"],
             font=self.ui_font("small"),

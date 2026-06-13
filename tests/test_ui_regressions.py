@@ -64,6 +64,17 @@ def test_ui_uses_clear_workflow_status_texts():
     app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
 
     assert "Данные сохранены" in app_source
+    assert "Данные сохранены в Базе Данных" in app_source
+    assert "Данные сохранены в SQLite" not in app_source
     assert "Загрузка Excel" in app_source
     assert "Экспорт отчёта" in app_source
     assert "По фильтру ничего не найдено" in app_source
+
+
+def test_main_window_uses_centering_and_app_icon():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "APP_ICON_PNG" in app_source
+    assert "set_app_icon" in app_source
+    assert "center_root_window" in app_source
+    assert "self.center_root_window" in app_source
