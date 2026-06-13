@@ -9,6 +9,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from functools import partial
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 import pandas as pd
@@ -85,13 +86,20 @@ class DissertationReportApp:
 
     def set_app_icon(self):
         self.app_icon_image = None
-        if not os.path.exists(APP_ICON_PNG):
+        icon_path = self.resolve_asset_path(APP_ICON_PNG)
+        if not icon_path.exists():
             return
         try:
-            self.app_icon_image = tk.PhotoImage(file=APP_ICON_PNG)
+            self.app_icon_image = tk.PhotoImage(file=str(icon_path))
             self.root.iconphoto(True, self.app_icon_image)
         except tk.TclError as exc:
             print(f"Иконка приложения не загружена: {exc}")
+
+    def resolve_asset_path(self, path):
+        asset_path = Path(path)
+        if asset_path.exists():
+            return asset_path
+        return Path(__file__).resolve().parents[2] / path
 
     def load_config(self):
         if os.path.exists(CONFIG_FILE):
@@ -229,26 +237,11 @@ class DissertationReportApp:
         brand = tk.Frame(self.topbar_frame, bg=APP_THEME["topbar"])
         brand.grid(row=0, column=0, padx=(SPACING["lg"], SPACING["md"]), sticky="w")
 
-        if PIL_AVAILABLE and os.path.exists(self.config["logo_path"]):
-            try:
-                pi = Image.open(self.config["logo_path"]);
-                pi = pi.resize((38, 38), Image.Resampling.LANCZOS);
-                self.logo_image = ImageTk.PhotoImage(pi)
-            except Exception as e:
-                print(f"Лого: {e}")
+        self.load_brand_icon()
 
         if self.logo_image:
-            tk.Label(brand, image=self.logo_image, bg=APP_THEME["topbar"]).pack(side="left", padx=(0, SPACING["sm"]))
-        else:
-            tk.Label(
-                brand,
-                text="АС",
-                bg=APP_THEME["primary_alt"],
-                fg=APP_THEME["topbar_text"],
-                font=self.ui_font("size", "bold"),
-                width=4,
-                height=2,
-            ).pack(side="left", padx=(0, SPACING["sm"]))
+            self.brand_icon_label = tk.Label(brand, image=self.logo_image, bg=APP_THEME["topbar"])
+            self.brand_icon_label.pack(side="left", padx=(0, SPACING["sm"]))
 
         brand_text = tk.Frame(brand, bg=APP_THEME["topbar"])
         brand_text.pack(side="left")
@@ -305,6 +298,31 @@ class DissertationReportApp:
             font=self.ui_font("small"),
             anchor="e",
         ).pack(anchor="e")
+
+    def load_brand_icon(self):
+        logo_path = self.resolve_asset_path(self.config["logo_path"])
+        app_icon_path = self.resolve_asset_path(APP_ICON_PNG)
+        if PIL_AVAILABLE and logo_path.exists():
+            try:
+                pi = Image.open(logo_path);
+                pi = pi.resize((38, 38), Image.Resampling.LANCZOS);
+                self.logo_image = ImageTk.PhotoImage(pi)
+                return
+            except Exception as e:
+                print(f"Лого: {e}")
+        if not app_icon_path.exists():
+            return
+        try:
+            if PIL_AVAILABLE:
+                pi = Image.open(app_icon_path)
+                pi = pi.resize((40, 40), Image.Resampling.LANCZOS)
+                self.logo_image = ImageTk.PhotoImage(pi)
+            else:
+                source = tk.PhotoImage(file=str(app_icon_path))
+                scale = max(1, min(source.width(), source.height()) // 40)
+                self.logo_image = source.subsample(scale, scale)
+        except tk.TclError as exc:
+            print(f"Иконка бренда не загружена: {exc}")
 
     def build_sidebar(self, parent):
         self.control_frame = tk.Frame(parent, bg=APP_THEME["sidebar"], width=276)

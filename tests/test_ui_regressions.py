@@ -78,3 +78,13 @@ def test_main_window_uses_centering_and_app_icon():
     assert "set_app_icon" in app_source
     assert "center_root_window" in app_source
     assert "self.center_root_window" in app_source
+
+
+def test_topbar_uses_app_icon_instead_of_text_badge():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "load_brand_icon" in app_source
+    assert "brand_icon_label" in app_source
+    assert "APP_ICON_PNG" in app_source
+    assert "PhotoImage(file=" in app_source
+    assert 'text="АС",' not in app_source
