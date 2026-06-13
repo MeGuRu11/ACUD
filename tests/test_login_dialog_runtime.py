@@ -70,6 +70,42 @@ def test_dialog_fields_bind_clipboard_shortcuts():
         root.destroy()
 
 
+def test_dialog_fields_execute_clipboard_shortcuts_from_control_keycodes():
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.geometry("240x80+0+0")
+
+    dialog = dialogs.DialogBase(root, "Test", "320x180")
+    body = dialog.body_frame()
+    form = dialog.form_frame(body)
+    entry = dialog.add_field(form, 0, "Логин")
+    dialog.center_on_screen()
+    entry.focus_force()
+    root.clipboard_clear()
+    root.clipboard_append("paste-ok")
+    root.update()
+
+    try:
+        entry.event_generate("<KeyPress>", state=0x4, keycode=86)
+        root.update()
+        assert entry.get() == "paste-ok"
+
+        entry.select_range(0, 5)
+        entry.event_generate("<KeyPress>", state=0x4, keycode=67)
+        root.update()
+        assert root.clipboard_get() == "paste"
+
+        entry.event_generate("<KeyPress>", state=0x4, keycode=88)
+        root.update()
+        assert entry.get() == "-ok"
+        assert root.clipboard_get() == "paste"
+    finally:
+        dialog.dialog.destroy()
+        root.destroy()
+
+
 def test_login_dialog_clock_widget_uses_required_formats(monkeypatch):
     try:
         root = tk.Tk()

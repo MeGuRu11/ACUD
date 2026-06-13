@@ -45,22 +45,95 @@ def create_dialog_button(parent, text, command, variant="primary", width=14):
     return button
 
 
+ENTRY_SHORTCUT_KEYCODES = {
+    67: "copy",
+    86: "paste",
+    88: "cut",
+}
+ENTRY_SHORTCUT_KEYSYMS = {
+    "c": "copy",
+    "с": "copy",
+    "v": "paste",
+    "м": "paste",
+    "x": "cut",
+    "ч": "cut",
+}
+
+
+def entry_selection_range(entry):
+    try:
+        return entry.index(tk.SEL_FIRST), entry.index(tk.SEL_LAST)
+    except tk.TclError:
+        return None
+
+
+def copy_entry_selection(entry):
+    selected_range = entry_selection_range(entry)
+    if not selected_range:
+        return
+    start, end = selected_range
+    selected_text = entry.get()[start:end]
+    entry.clipboard_clear()
+    entry.clipboard_append(selected_text)
+
+
+def paste_entry_clipboard(entry):
+    if entry.cget("state") == "disabled":
+        return
+    try:
+        clipboard_text = entry.clipboard_get()
+    except tk.TclError:
+        return
+    selected_range = entry_selection_range(entry)
+    if selected_range:
+        entry.delete(*selected_range)
+    entry.insert(tk.INSERT, clipboard_text)
+
+
+def cut_entry_selection(entry):
+    if entry.cget("state") == "disabled":
+        return
+    selected_range = entry_selection_range(entry)
+    if not selected_range:
+        return
+    copy_entry_selection(entry)
+    entry.delete(*selected_range)
+
+
+def run_entry_shortcut(entry, action):
+    if action == "copy":
+        copy_entry_selection(entry)
+    elif action == "paste":
+        paste_entry_clipboard(entry)
+    elif action == "cut":
+        cut_entry_selection(entry)
+
+
 def enable_entry_shortcuts(entry):
-    shortcuts = {
-        "<Control-v>": "<<Paste>>",
-        "<Control-V>": "<<Paste>>",
-        "<Control-c>": "<<Copy>>",
-        "<Control-C>": "<<Copy>>",
-        "<Control-x>": "<<Cut>>",
-        "<Control-X>": "<<Cut>>",
+    direct_shortcuts = {
+        "<Control-v>": "paste",
+        "<Control-V>": "paste",
+        "<Control-c>": "copy",
+        "<Control-C>": "copy",
+        "<Control-x>": "cut",
+        "<Control-X>": "cut",
     }
 
-    for sequence, virtual_event in shortcuts.items():
-        def handle(event, event_name=virtual_event):
-            event.widget.event_generate(event_name)
-            return "break"
+    def handle_action(event, action):
+        run_entry_shortcut(event.widget, action)
+        return "break"
 
-        entry.bind(sequence, handle)
+    def handle_control_keypress(event):
+        keysym = (event.keysym or "").lower()
+        action = ENTRY_SHORTCUT_KEYCODES.get(event.keycode) or ENTRY_SHORTCUT_KEYSYMS.get(keysym)
+        if not action:
+            return None
+        run_entry_shortcut(event.widget, action)
+        return "break"
+
+    entry.bind("<Control-KeyPress>", handle_control_keypress)
+    for sequence, action in direct_shortcuts.items():
+        entry.bind(sequence, lambda event, shortcut_action=action: handle_action(event, shortcut_action))
     return entry
 
 

@@ -43,9 +43,12 @@ def test_login_dialog_centers_brand_and_buttons_and_enables_clipboard_shortcuts(
     assert "button_row" in source
     assert "justify=\"center\"" in source
     assert "enable_entry_shortcuts" in source
-    assert "<<Paste>>" in source
-    assert "<<Copy>>" in source
-    assert "<<Cut>>" in source
+    assert "ENTRY_SHORTCUT_KEYCODES" in source
+    assert "ENTRY_SHORTCUT_KEYSYMS" in source
+    assert "paste_entry_clipboard" in source
+    assert "copy_entry_selection" in source
+    assert "cut_entry_selection" in source
+    assert "<Control-KeyPress>" in source
 
 
 def test_login_dialog_has_live_date_time_widget():
