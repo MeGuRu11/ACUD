@@ -1,23 +1,29 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
-cd /d "%~dp0"
-
-for /F "delims=" %%A in ('echo prompt $E ^| cmd') do set "ESC=%%A"
+set "PROJECT_DIR=%~dp0"
+cd /d "%PROJECT_DIR%"
 
 set "APP_NAME=ASUD"
 set "ENTRY_FILE=ASUD.py"
 set "ASSETS_DIR=assets"
 set "ICON_PNG=assets\asud_icon.png"
 set "ICON_ICO=assets\asud_icon.ico"
+set "ICON_ICO_FILE=%PROJECT_DIR%assets\asud_icon.ico"
 set "DIST_EXE=dist\ASUD.exe"
-set "PYINSTALLER_ASSETS=assets;assets"
+set "BUILD_LOG=build\pyinstaller_build.log"
+set "PYINSTALLER_ASSETS=%PROJECT_DIR%assets;assets"
 set "PYTHON_CMD="
+set "NO_PAUSE=0"
 
 title ASUD EXE Builder
 
+if /I "%~1"=="--no-pause" set "NO_PAUSE=1"
+if /I "%~2"=="--no-pause" set "NO_PAUSE=1"
 if /I "%~1"=="--help" goto help
+if /I "%~2"=="--help" goto help
 if /I "%~1"=="/?" goto help
+if /I "%~2"=="/?" goto help
 
 call :banner
 
@@ -52,14 +58,14 @@ if not exist "%ASSETS_DIR%\" (
 call :ok "Файлы проекта на месте."
 
 call :step "4/6" "Подготовка иконки приложения"
-set "ICON_OPTION="
+set "USE_ICON=0"
 if not exist "%ICON_PNG%" goto icon_missing
 %PYTHON_CMD% -c "from pathlib import Path; from PIL import Image; src=Path(r'%ICON_PNG%'); dst=Path(r'%ICON_ICO%'); img=Image.open(src).convert('RGBA'); img.save(dst, sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 if errorlevel 1 (
     call :error "Не удалось подготовить ICO из PNG. Проверьте Pillow."
     goto failed
 )
-set "ICON_OPTION=--icon=%ICON_ICO%"
+set "USE_ICON=1"
 call :ok "Иконка готова: %ICON_ICO%"
 goto icon_done
 
@@ -69,12 +75,19 @@ call :info "PNG-иконка не найдена, сборка продолжи�
 :icon_done
 
 call :step "5/6" "Сборка ASUD.exe"
+if not exist "build\" mkdir "build"
 call :line
-%PYTHON_CMD% -m PyInstaller --noconfirm --clean --onefile --windowed --name ASUD --workpath "build\pyinstaller" --specpath "build" --distpath "dist" %ICON_OPTION% --add-data "%PYINSTALLER_ASSETS%" --hidden-import matplotlib.backends.backend_tkagg "%ENTRY_FILE%"
+if "%USE_ICON%"=="1" (
+    %PYTHON_CMD% -m PyInstaller --noconfirm --clean --log-level WARN --onefile --windowed --name ASUD --workpath "build\pyinstaller" --specpath "build" --distpath "dist" --icon "%ICON_ICO_FILE%" --add-data "%PYINSTALLER_ASSETS%" --hidden-import matplotlib.backends.backend_tkagg "%ENTRY_FILE%" > "%BUILD_LOG%" 2>&1
+) else (
+    %PYTHON_CMD% -m PyInstaller --noconfirm --clean --log-level WARN --onefile --windowed --name ASUD --workpath "build\pyinstaller" --specpath "build" --distpath "dist" --add-data "%PYINSTALLER_ASSETS%" --hidden-import matplotlib.backends.backend_tkagg "%ENTRY_FILE%" > "%BUILD_LOG%" 2>&1
+)
 set "BUILD_EXIT=%ERRORLEVEL%"
 call :line
 if not "%BUILD_EXIT%"=="0" (
     call :error "PyInstaller завершился с ошибкой. Код: %BUILD_EXIT%"
+    call :info "Подробный лог: %BUILD_LOG%"
+    if exist "%BUILD_LOG%" type "%BUILD_LOG%"
     goto failed
 )
 
@@ -86,24 +99,25 @@ if not exist "%DIST_EXE%" (
 for %%I in ("%DIST_EXE%") do set "EXE_SIZE=%%~zI"
 call :ok "Готово: %DIST_EXE%"
 call :info "Размер файла: !EXE_SIZE! байт"
+call :info "Технический лог: %BUILD_LOG%"
 
 echo.
 call :line
-echo %ESC%[92m  Сборка завершена успешно.%ESC%[0m
-echo %ESC%[97m  Запустить программу можно из файла:%ESC%[0m %ESC%[96m%DIST_EXE%%ESC%[0m
+echo   Сборка завершена успешно.
+echo   Запустить программу можно из файла: %DIST_EXE%
 call :line
 echo.
-pause
+call :pause_if_needed
 exit /b 0
 
 :failed
 echo.
 call :line
-echo %ESC%[91m  Сборка остановлена.%ESC%[0m
-echo %ESC%[97m  Проверьте сообщение об ошибке выше и повторите запуск.%ESC%[0m
+echo   Сборка остановлена.
+echo   Проверьте сообщение об ошибке выше и повторите запуск.
 call :line
 echo.
-pause
+call :pause_if_needed
 exit /b 1
 
 :detect_python
@@ -124,31 +138,36 @@ exit /b 0
 cls
 echo.
 call :line
-echo %ESC%[96m    АСУД — упаковка приложения в EXE%ESC%[0m
-echo %ESC%[90m    ВМедА им. С.М. Кирова ^| Desktop build pipeline%ESC%[0m
+echo     АСУД - упаковка приложения в EXE
+echo     ВМедА им. С.М. Кирова ^| Desktop build pipeline
 call :line
 echo.
 exit /b 0
 
 :step
 echo.
-echo %ESC%[96m[%~1]%ESC%[0m %ESC%[97m%~2%ESC%[0m
+echo [%~1] %~2
 exit /b 0
 
 :ok
-echo   %ESC%[92mOK%ESC%[0m    %~1
+echo   [OK]    %~1
 exit /b 0
 
 :info
-echo   %ESC%[94mINFO%ESC%[0m  %~1
+echo   [INFO]  %~1
 exit /b 0
 
 :error
-echo   %ESC%[91mERROR%ESC%[0m %~1
+echo   [ERROR] %~1
 exit /b 0
 
 :line
-echo %ESC%[90m----------------------------------------------------------------%ESC%[0m
+echo ----------------------------------------------------------------
+exit /b 0
+
+:pause_if_needed
+if "%NO_PAUSE%"=="1" exit /b 0
+pause
 exit /b 0
 
 :help
@@ -157,6 +176,7 @@ echo ASUD EXE Builder
 echo.
 echo Usage:
 echo   build_exe.bat
+echo   build_exe.bat --no-pause
 echo.
 echo Result:
 echo   dist\ASUD.exe
