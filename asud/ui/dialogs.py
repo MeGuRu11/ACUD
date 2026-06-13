@@ -296,9 +296,13 @@ class LoginDialog(DialogBase):
         self.hero_frame.pack(fill="x")
         self.hero_frame.pack_propagate(False)
 
-        self.build_clock_widget(self.hero_frame)
+        self.login_clock_row = tk.Frame(self.hero_frame, bg=APP_THEME["topbar"], height=36)
+        self.login_clock_row.pack(fill="x", padx=SPACING["panel"], pady=(SPACING["sm"], 0))
+        self.login_clock_row.pack_propagate(False)
+        self.build_clock_widget(self.login_clock_row)
+
         brand_stack = tk.Frame(self.hero_frame, bg=APP_THEME["topbar"])
-        brand_stack.pack(fill="x", pady=(SPACING["lg"], 0))
+        brand_stack.pack(fill="x", pady=(SPACING["xs"], 0))
         self.login_icon_label = tk.Label(
             brand_stack,
             image=self.load_login_icon(),
@@ -348,8 +352,10 @@ class LoginDialog(DialogBase):
 
         form = self.form_frame(self.login_form_card)
         form.pack(fill="x", padx=SPACING["lg"], pady=(SPACING["lg"], SPACING["sm"]))
-        self.entry_login = self.add_field(form, 0, "Логин")
-        self.entry_password = self.add_field(form, 1, "Пароль", show="*")
+        self.entry_login = self.add_field(form, 0, "Логин", width=42)
+        self.entry_login.grid_configure(ipady=SPACING["sm"])
+        self.entry_password = self.add_field(form, 1, "Пароль", show="*", width=42)
+        self.entry_password.grid_configure(ipady=SPACING["sm"])
         self.credential_hint = tk.Label(
             self.login_form_card,
             text="Учётные записи создаются администратором в разделе «Пользователи».",
@@ -400,7 +406,7 @@ class LoginDialog(DialogBase):
         self.login_clock_date_var = tk.StringVar()
         self.login_clock_time_var = tk.StringVar()
         self.clock_frame = tk.Frame(parent, bg=APP_THEME["topbar"])
-        self.clock_frame.place(relx=1.0, x=-SPACING["panel"], y=SPACING["panel"], anchor="ne")
+        self.clock_frame.pack(anchor="e")
 
         clock_shell = tk.Frame(
             self.clock_frame,

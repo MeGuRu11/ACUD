@@ -74,3 +74,13 @@ def test_login_dialog_has_live_date_time_widget():
     assert 'strftime("%d.%m.%Y")' in source
     assert 'strftime("%H:%M:%S")' in source
     assert "self.dialog.after(1000, self.update_clock)" in source
+
+
+def test_login_dialog_uses_dedicated_clock_row_and_larger_fields():
+    source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+    login_source = source[source.index("class LoginDialog"):source.index("class InitialAdminDialog")]
+
+    assert "login_clock_row" in login_source
+    assert ".place(" not in login_source[login_source.index("def build_clock_widget"):login_source.index("def update_clock")]
+    assert "ipady=SPACING[\"sm\"]" in login_source
+    assert "width=42" in login_source

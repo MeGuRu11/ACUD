@@ -189,6 +189,32 @@ def test_login_dialog_clock_widget_is_visible_inside_hero(monkeypatch):
         root.destroy()
 
 
+def test_login_dialog_fields_are_larger_and_clock_is_above_brand(monkeypatch):
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+
+    def no_wait(self, on_close):
+        self.dialog.protocol("WM_DELETE_WINDOW", on_close)
+        self.center_on_screen()
+
+    monkeypatch.setattr(dialogs.DialogBase, "wait", no_wait)
+    login = dialogs.LoginDialog(root, FakeUserManager())
+    login.dialog.update()
+
+    try:
+        assert login.entry_login.winfo_width() >= 390
+        assert login.entry_password.winfo_width() >= 390
+        assert login.entry_login.winfo_height() >= 34
+        assert login.entry_password.winfo_height() >= 34
+        assert login.clock_frame.winfo_rooty() < login.login_icon_label.winfo_rooty()
+    finally:
+        login.dialog.destroy()
+        root.destroy()
+
+
 def test_login_dialog_uses_app_icon_image_instead_of_text_badge(monkeypatch):
     try:
         root = tk.Tk()
