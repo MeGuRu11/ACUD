@@ -8,6 +8,9 @@ import pandas as pd
 from .config import REQUIRED_COLUMNS
 
 
+MISSING_TEXT_VALUES = {"", "none", "nan", "<na>", "nat", "null"}
+
+
 class DataModel:
     def __init__(self, config):
         self.config = config
@@ -18,8 +21,32 @@ class DataModel:
         self.sort_reverse = False
         self.smart_search_query = ""
 
+    @staticmethod
+    def is_missing_value(value):
+        if value is None:
+            return True
+        try:
+            if pd.isna(value):
+                return True
+        except (TypeError, ValueError):
+            pass
+        return isinstance(value, str) and value.strip().lower() in MISSING_TEXT_VALUES
+
+    @classmethod
+    def format_display_value(cls, value):
+        if cls.is_missing_value(value):
+            return ""
+        return str(value).strip() if isinstance(value, str) else str(value)
+
+    @classmethod
+    def clean_missing_values(cls, df):
+        clean = df.copy()
+        for column in clean.columns:
+            clean[column] = clean[column].map(lambda value: "" if cls.is_missing_value(value) else value)
+        return clean
+
     def _safe_convert_value(self, col, val):
-        if val is None or (isinstance(val, str) and val.strip() == ''): return pd.NA
+        if self.is_missing_value(val): return pd.NA
         if col in self.data.columns:
             d = str(self.data[col].dtype)
             if 'Int64' in d:
@@ -45,6 +72,7 @@ class DataModel:
         df.columns = df.columns.str.strip()
         for col in REQUIRED_COLUMNS:
             if col not in df.columns: df[col] = None
+        df = self.clean_missing_values(df)
         df = df[df["ФИО"].notna() & (df["ФИО"] != "")] if "ФИО" in df.columns else df
         df.reset_index(drop=True, inplace=True)
         date_col = "Дата защиты диссертации"
@@ -59,6 +87,7 @@ class DataModel:
     def _add_missing_columns(self, df):
         for col in REQUIRED_COLUMNS:
             if col not in df.columns: df[col] = None
+        df = self.clean_missing_values(df)
         return df[[c for c in df.columns if c not in REQUIRED_COLUMNS] + REQUIRED_COLUMNS]
 
     def _normalize_date(self, date_str):
@@ -90,13 +119,15 @@ class DataModel:
         self.data = self.data.drop(index).reset_index(drop=True)
         self.apply_filters()
 
-    def update_record(self, index, new_values):
+    def update_record(self, index, new_values, allow_empty_update=False):
         for col, val in new_values.items():
             if col not in self.data.columns or col == '_original_index': continue
             cur = self.data.at[index, col] if index in self.data.index else None
-            is_empty = val is None or (isinstance(val, str) and val.strip() == '')
-            if is_empty and pd.notna(cur) and str(cur).strip() != '': continue
+            is_empty = self.is_missing_value(val)
+            if is_empty and not allow_empty_update and pd.notna(cur) and str(cur).strip() != '': continue
             sv = self._safe_convert_value(col, val)
+            if allow_empty_update and self.is_missing_value(sv):
+                sv = ""
             self.data.at[index, col] = sv
             if index in self.filtered_data.index and col in self.filtered_data.columns: self.filtered_data.at[
                 index, col] = sv
@@ -114,7 +145,7 @@ class DataModel:
     def get_row_by_original_index(self, index):
         if index in self.data.index:
             row = self.data.loc[index].copy()
-            return {k: ('' if pd.isna(v) else str(v)) for k, v in row.to_dict().items()}
+            return {k: self.format_display_value(v) for k, v in row.to_dict().items()}
         return None
 
     def add_filter(self, field, value):

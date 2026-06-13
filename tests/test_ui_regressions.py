@@ -132,3 +132,13 @@ def test_table_column_widths_are_readable_for_domain_columns():
     assert widths["Название диссертации"] >= 340
     assert widths["Информация о лишении степени"] >= 260
     assert widths["Примечания"] >= 240
+
+
+def test_table_and_detail_view_use_clean_display_values():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "format_display_value" in app_source
+    assert "show_record_detail_view" in app_source
+    assert "save_record_detail_changes" in app_source
+    assert 'self.tree.bind("<Double-1>", self.open_selected_record_view)' in app_source
+    assert 'self.tree.bind("<Return>", self.open_selected_record_view)' in app_source

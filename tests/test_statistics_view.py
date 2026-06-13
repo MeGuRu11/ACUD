@@ -53,6 +53,44 @@ def test_statistics_chart_size_changes_with_bar_count():
     assert compact[1] == wide[1]
 
 
+def test_filter_statistics_dataframe_combines_year_degree_and_text_query():
+    app = DissertationReportApp.__new__(DissertationReportApp)
+    df = pd.DataFrame(
+        {
+            "Год защиты": [2020, 2021, 2022, 2023, 2024],
+            "Искомая степень": [
+                "кандидат медицинских наук",
+                "доктор медицинских наук",
+                "кандидат медицинских наук",
+                "кандидат медицинских наук",
+                "кандидат медицинских наук",
+            ],
+            "Название диссертации": [
+                "кардиология",
+                "хирургия",
+                "военная хирургия",
+                "терапия",
+                "хирургия",
+            ],
+            "ФИО": ["a", "b", "c", "d", "e"],
+        }
+    )
+
+    filtered = app.filter_statistics_dataframe(
+        df,
+        {
+            "year_from": "2021",
+            "year_to": "2024",
+            "degree": "кандидат медицинских наук",
+            "query": "хирург",
+            "min_count": "1",
+            "max_count": "1",
+        },
+    )
+
+    assert filtered["ФИО"].tolist() == ["c", "e"]
+
+
 def test_statistics_window_source_has_redesigned_informative_chart():
     source = Path("asud/ui/app.py").read_text(encoding="utf-8")
 
@@ -69,4 +107,7 @@ def test_statistics_window_source_has_redesigned_informative_chart():
     assert "Пиковый год" in source
     assert "Всего работ" in source
     assert "Минимум работ за год" in source
+    assert "Максимум работ за год" in source
+    assert "Искомая степень" in source
+    assert "Поиск в статистике" in source
     assert "refresh_statistics_view" in source

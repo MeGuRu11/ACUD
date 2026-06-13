@@ -43,6 +43,29 @@ def test_export_to_excel_uses_readable_domain_column_widths(tmp_path):
     assert widths["Примечания"] >= 24
 
 
+def test_export_to_excel_hides_empty_placeholders(tmp_path):
+    generator = ReportGenerator({})
+    df = pd.DataFrame(
+        [
+            {
+                "ФИО": "Иванов И.И.",
+                "Примечания": "nan",
+                "Информация о лишении степени": "None",
+                "Искомая степень": pd.NA,
+            }
+        ]
+    )
+    output = tmp_path / "report.xlsx"
+
+    generator.export_to_excel(df, output)
+
+    worksheet = load_workbook(output).active
+    row_values = [cell.value for cell in worksheet[2]]
+    assert "nan" not in row_values
+    assert "None" not in row_values
+    assert "<NA>" not in row_values
+
+
 def test_word_column_widths_fit_available_page_width():
     columns = [
         "ФИО",

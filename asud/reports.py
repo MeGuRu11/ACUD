@@ -11,6 +11,8 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
+from asud.data_model import DataModel
+
 
 EXCEL_COLUMN_WIDTHS = {
     "Год защиты": 12,
@@ -75,6 +77,7 @@ class ReportGenerator:
 
     def export_to_excel(self, df, filepath, selected_columns=None):
         df = self._select_columns(df, selected_columns)
+        df = DataModel.clean_missing_values(df)
         with pd.ExcelWriter(filepath, engine='openpyxl') as w:
             df.to_excel(w, sheet_name='Отчёт', index=False)
             ws = w.sheets['Отчёт']
@@ -114,6 +117,7 @@ class ReportGenerator:
     def export_to_word(self, df, filepath, query_text="", selected_columns=None, template_path=None):
         from docx.enum.section import WD_SECTION, WD_ORIENT
         df = self._select_columns(df, selected_columns)
+        df = DataModel.clean_missing_values(df)
         doc = Document(template_path) if template_path and Path(template_path).exists() else Document()
         s = doc.sections[0];
         s.page_height = Cm(29.7);

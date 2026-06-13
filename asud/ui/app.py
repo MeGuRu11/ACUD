@@ -183,6 +183,7 @@ class DissertationReportApp:
             if not df.empty:
                 if "Год защиты" in df.columns: df["Год защиты"] = pd.to_numeric(df["Год защиты"],
                                                                                 errors="coerce").astype("Int64")
+                df = self.data_model.clean_missing_values(df)
                 df = self.data_model._add_missing_columns(df)
                 self.data_model.data = df.copy();
                 self.data_model.filtered_data = self.data_model.data.copy()
@@ -195,6 +196,7 @@ class DissertationReportApp:
                 df = pd.read_csv(self.config["persistence_file"], encoding='utf-8')
                 if "Год защиты" in df.columns: df["Год защиты"] = pd.to_numeric(df["Год защиты"],
                                                                                 errors="coerce").astype("Int64")
+                df = self.data_model.clean_missing_values(df)
                 df = self.data_model._add_missing_columns(df)
                 self.data_model.data = df.copy();
                 self.data_model.filtered_data = self.data_model.data.copy()
@@ -360,6 +362,7 @@ class DissertationReportApp:
         self.add_nav_group("Данные")
         self.btn_load = self.create_nav_button("Загрузить Excel", self.load_excel_async, active=True)
         self.btn_add = self.create_nav_button("Новая запись", self.add_record)
+        self.btn_open_record = self.create_nav_button("Открыть запись", self.open_selected_record_view)
         self.btn_edit = self.create_nav_button("Редактировать", self.edit_selected)
         self.btn_delete = self.create_nav_button("Удалить", self.delete_selected, variant="danger")
 
@@ -556,6 +559,8 @@ class DissertationReportApp:
         tc.rowconfigure(0, weight=1);
         tc.columnconfigure(0, weight=1)
         self.tree.bind("<Button-1>", self.on_tree_click)
+        self.tree.bind("<Double-1>", self.open_selected_record_view)
+        self.tree.bind("<Return>", self.open_selected_record_view)
 
     def build_statusbar(self):
         self.status_frame = tk.Frame(self.root, bg=APP_THEME["surface"], height=28)
@@ -771,7 +776,7 @@ class DissertationReportApp:
                                                                                                        anchor="w")
         for idx, row in df.iterrows():
             oi = row.get('_original_index', idx);
-            self.tree.insert("", "end", iid=str(oi), values=[row[c] for c in dc])
+            self.tree.insert("", "end", iid=str(oi), values=[self.data_model.format_display_value(row[c]) for c in dc])
         self.update_filter_summary()
         self.tree.update_idletasks()
 
@@ -815,6 +820,153 @@ class DissertationReportApp:
             messagebox.showinfo("Успех", "Запись обновлена")
 
         RecordDialog(self.root, "Редактировать", self.data_model.get_columns(), initial_values=rd, on_save=on_save)
+
+    def open_selected_record_view(self, event=None):
+        if event is not None and hasattr(event, "x") and hasattr(event, "y"):
+            if self.tree.identify_region(event.x, event.y) == "heading":
+                return
+        sel = self.tree.selection()
+        if not sel:
+            return messagebox.showwarning("Запись", "Выберите строку в списке записей.")
+        self.show_record_detail_view(int(sel[0]))
+
+    def show_record_detail_view(self, record_index):
+        record = self.data_model.get_row_by_original_index(record_index)
+        if record is None:
+            return messagebox.showerror("Ошибка", "Запись не найдена.")
+
+        can_edit = self.current_role in ("admin", "editor")
+        title_value = record.get("ФИО") or "Карточка записи"
+        detail = tk.Toplevel(self.root)
+        detail.title(f"Карточка записи | {title_value}")
+        detail.geometry("980x720")
+        detail.minsize(860, 620)
+        detail.configure(bg=APP_THEME["app_background"])
+        configure_ttk_style(detail, self.config["theme"])
+
+        header = tk.Frame(detail, bg=APP_THEME["topbar"], height=86)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        tk.Label(
+            header,
+            text="Карточка записи",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=self.ui_font("title", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], 0))
+        tk.Label(
+            header,
+            text=title_value,
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=self.ui_font("small"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(2, SPACING["md"]))
+
+        canvas = tk.Canvas(detail, bg=APP_THEME["app_background"], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(detail, orient="vertical", command=canvas.yview)
+        body = tk.Frame(canvas, bg=APP_THEME["surface"])
+        body_id = canvas.create_window((0, 0), window=body, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True, padx=(SPACING["lg"], 0), pady=SPACING["lg"])
+        scrollbar.pack(side="right", fill="y", padx=(0, SPACING["lg"]), pady=SPACING["lg"])
+        body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(body_id, width=e.width))
+
+        fields = {}
+        columns = [column for column in self.data_model.get_columns() if column != "_original_index"]
+        for row_index, column in enumerate(columns):
+            row = tk.Frame(body, bg=APP_THEME["surface"])
+            row.grid(row=row_index, column=0, sticky="ew", padx=SPACING["lg"], pady=(SPACING["sm"], 0))
+            row.columnconfigure(1, weight=1)
+            tk.Label(
+                row,
+                text=column,
+                bg=APP_THEME["surface"],
+                fg=APP_THEME["muted_text"],
+                font=self.ui_font("small", "bold"),
+                anchor="w",
+                width=32,
+            ).grid(row=0, column=0, sticky="nw", padx=(0, SPACING["md"]), pady=4)
+
+            value = self.data_model.format_display_value(record.get(column, ""))
+            is_long = any(marker in column.lower() for marker in ("название", "примеч", "информация"))
+            if is_long:
+                widget = tk.Text(
+                    row,
+                    height=3,
+                    wrap="word",
+                    font=self.ui_font("size"),
+                    bg=APP_THEME["surface_soft"],
+                    fg=APP_THEME["text"],
+                    relief="solid",
+                    bd=1,
+                )
+                widget.insert("1.0", value)
+                widget.grid(row=0, column=1, sticky="ew")
+                if not can_edit:
+                    widget.config(state="disabled")
+            else:
+                widget = tk.Entry(
+                    row,
+                    font=self.ui_font("size"),
+                    bg=APP_THEME["surface_soft"],
+                    fg=APP_THEME["text"],
+                    relief="solid",
+                    bd=1,
+                )
+                widget.insert(0, value)
+                widget.grid(row=0, column=1, sticky="ew")
+                if not can_edit:
+                    widget.config(state="readonly")
+            fields[column] = widget
+
+        actions = tk.Frame(body, bg=APP_THEME["surface"])
+        actions.grid(row=len(columns), column=0, sticky="ew", padx=SPACING["lg"], pady=SPACING["lg"])
+        actions.columnconfigure(0, weight=1)
+        if can_edit:
+            tk.Button(
+                actions,
+                text="Сохранить изменения",
+                command=lambda: self.save_record_detail_changes(record_index, fields, detail),
+                bg=APP_THEME["primary_alt"],
+                fg=APP_THEME["topbar_text"],
+                activebackground=APP_THEME["primary"],
+                font=self.ui_font("size", "bold"),
+                relief="flat",
+                padx=SPACING["lg"],
+                pady=SPACING["sm"],
+            ).pack(side="left")
+        tk.Button(
+            actions,
+            text="Закрыть",
+            command=detail.destroy,
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["text"],
+            activebackground=APP_THEME["line"],
+            font=self.ui_font("size", "bold"),
+            relief="flat",
+            padx=SPACING["lg"],
+            pady=SPACING["sm"],
+        ).pack(side="right")
+
+    def save_record_detail_changes(self, record_index, fields, detail_window):
+        if self.current_role not in ("admin", "editor"):
+            return messagebox.showerror("Доступ запрещён", "Недостаточно прав для редактирования.")
+        new_values = {}
+        for column, widget in fields.items():
+            if isinstance(widget, tk.Text):
+                new_values[column] = widget.get("1.0", "end-1c").strip()
+            else:
+                new_values[column] = widget.get().strip()
+        self.data_model.update_record(record_index, new_values, allow_empty_update=True)
+        self.display_data()
+        self.save_persisted_data()
+        self.log_action(f"Карточка записи обновлена: {record_index}")
+        self.status_var.set("Запись обновлена и сохранена в Базе Данных")
+        messagebox.showinfo("Успех", "Изменения сохранены.")
+        detail_window.focus_set()
 
     def delete_selected(self):
         if self.current_role not in ("admin", "editor"): return messagebox.showerror("Доступ запрещён")
@@ -921,6 +1073,56 @@ class DissertationReportApp:
         counts = stats["counts"][stats["counts"] >= min_count]
         return self.summarize_year_counts(counts)
 
+    @staticmethod
+    def parse_optional_int(value):
+        value = str(value or "").strip()
+        if not value:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            return None
+
+    def filter_statistics_dataframe(self, df, criteria):
+        result = df.copy()
+        if result.empty:
+            return result
+
+        years = pd.to_numeric(result["Год защиты"], errors="coerce")
+        year_from = self.parse_optional_int(criteria.get("year_from"))
+        year_to = self.parse_optional_int(criteria.get("year_to"))
+        if year_from is not None:
+            result = result[years >= year_from]
+            years = pd.to_numeric(result["Год защиты"], errors="coerce")
+        if year_to is not None:
+            result = result[years <= year_to]
+
+        degree = str(criteria.get("degree") or "").strip()
+        if degree and degree != "Все степени" and "Искомая степень" in result.columns:
+            degree_values = result["Искомая степень"].map(DataModel.format_display_value).str.lower()
+            result = result[degree_values == degree.lower()]
+
+        query = str(criteria.get("query") or "").strip().lower()
+        if query:
+            def matches_query(row):
+                return any(query in DataModel.format_display_value(value).lower() for value in row)
+
+            result = result[result.apply(matches_query, axis=1)]
+
+        min_count = self.parse_optional_int(criteria.get("min_count"))
+        max_count = self.parse_optional_int(criteria.get("max_count"))
+        if min_count is not None or max_count is not None:
+            year_counts = pd.to_numeric(result["Год защиты"], errors="coerce").dropna().astype(int).value_counts()
+            if min_count is not None:
+                year_counts = year_counts[year_counts >= min_count]
+            if max_count is not None:
+                year_counts = year_counts[year_counts <= max_count]
+            allowed_years = set(year_counts.index.astype(int).tolist())
+            result_years = pd.to_numeric(result["Год защиты"], errors="coerce")
+            result = result[result_years.isin(allowed_years)]
+
+        return result
+
     def calculate_statistics_chart_size(self, bar_count):
         width = max(7.4, min(13.5, 5.8 + int(bar_count) * 0.52))
         return (width, 4.6)
@@ -949,23 +1151,25 @@ class DissertationReportApp:
             font=self.ui_font("small", "bold"),
             anchor="w",
         ).pack(fill="x", padx=SPACING["md"], pady=(SPACING["md"], 2))
-        tk.Label(
+        value_label = tk.Label(
             card,
             text=value,
             bg=APP_THEME["surface"],
             fg=APP_THEME["text"],
             font=self.ui_font("title", "bold"),
             anchor="w",
-        ).pack(fill="x", padx=SPACING["md"])
-        tk.Label(
+        )
+        value_label.pack(fill="x", padx=SPACING["md"])
+        subtitle_label = tk.Label(
             card,
             text=subtitle,
             bg=APP_THEME["surface"],
             fg=APP_THEME["muted_text"],
             font=self.ui_font("caption"),
             anchor="w",
-        ).pack(fill="x", padx=SPACING["md"], pady=(2, SPACING["md"]))
-        return card
+        )
+        subtitle_label.pack(fill="x", padx=SPACING["md"], pady=(2, SPACING["md"]))
+        return {"frame": card, "value": value_label, "subtitle": subtitle_label}
 
     def create_year_statistics_chart(self, parent, stats):
         counts = stats["counts"]
@@ -1092,14 +1296,14 @@ class DissertationReportApp:
 
         cards = tk.Frame(sw, bg=APP_THEME["app_background"])
         cards.pack(fill="x", padx=SPACING["lg"], pady=SPACING["md"])
-        self.create_statistics_card(
+        total_card = self.create_statistics_card(
             cards,
             "Всего работ",
             str(stats["total"]),
             f"учтено в статистике: {stats['total']} {self.format_work_count(stats['total'])}",
         )
-        self.create_statistics_card(cards, "Период", stats["period"], "по полю «Год защиты»")
-        self.create_statistics_card(
+        period_card = self.create_statistics_card(cards, "Период", stats["period"], "по полю «Год защиты»")
+        peak_card = self.create_statistics_card(
             cards,
             "Пиковый год",
             str(stats["peak_year"]),
@@ -1113,38 +1317,166 @@ class DissertationReportApp:
             highlightthickness=1,
         )
         filter_frame.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+
+        degree_values = ["Все степени"]
+        if "Искомая степень" in df.columns:
+            degree_values.extend(
+                sorted(
+                    {
+                        DataModel.format_display_value(value)
+                        for value in df["Искомая степень"]
+                        if DataModel.format_display_value(value)
+                    }
+                )
+            )
+        max_count = max(1, int(stats["counts"].max()))
+        year_min = int(stats["counts"].index.min())
+        year_max = int(stats["counts"].index.max())
+        year_from_var = tk.StringVar(value=str(year_min))
+        year_to_var = tk.StringVar(value=str(year_max))
+        degree_var = tk.StringVar(value="Все степени")
+        query_var = tk.StringVar()
+        min_count_var = tk.StringVar(value="1")
+        max_count_var = tk.StringVar()
+        filter_status_var = tk.StringVar()
+
+        for column_index in range(12):
+            filter_frame.columnconfigure(column_index, weight=1 if column_index in (5, 11) else 0)
+
+        tk.Label(
+            filter_frame,
+            text="Год с",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w", padx=(SPACING["md"], SPACING["xs"]), pady=(SPACING["sm"], 2))
+        year_from_entry = tk.Entry(filter_frame, width=8, textvariable=year_from_var, font=self.ui_font("size"))
+        year_from_entry.grid(row=1, column=0, sticky="ew", padx=(SPACING["md"], SPACING["sm"]), pady=(0, SPACING["sm"]))
+
+        tk.Label(
+            filter_frame,
+            text="Год по",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+        ).grid(row=0, column=1, sticky="w", padx=(0, SPACING["xs"]), pady=(SPACING["sm"], 2))
+        year_to_entry = tk.Entry(filter_frame, width=8, textvariable=year_to_var, font=self.ui_font("size"))
+        year_to_entry.grid(row=1, column=1, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+
+        tk.Label(
+            filter_frame,
+            text="Искомая степень",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+        ).grid(row=0, column=2, sticky="w", padx=(0, SPACING["xs"]), pady=(SPACING["sm"], 2))
+        degree_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=degree_var,
+            values=degree_values,
+            state="readonly",
+            width=26,
+            font=self.ui_font("size"),
+        )
+        degree_combo.grid(row=1, column=2, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+
+        tk.Label(
+            filter_frame,
+            text="Поиск в статистике",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+        ).grid(row=0, column=3, sticky="w", padx=(0, SPACING["xs"]), pady=(SPACING["sm"], 2))
+        query_entry = tk.Entry(filter_frame, textvariable=query_var, font=self.ui_font("size"), width=22)
+        query_entry.grid(row=1, column=3, columnspan=3, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+
         tk.Label(
             filter_frame,
             text="Минимум работ за год",
             bg=APP_THEME["surface"],
             fg=APP_THEME["text"],
-            font=self.ui_font("size", "bold"),
+            font=self.ui_font("small", "bold"),
             anchor="w",
-        ).pack(side="left", padx=(SPACING["md"], SPACING["sm"]), pady=SPACING["sm"])
-
-        max_count = max(1, int(stats["counts"].max()))
-        min_count_var = tk.IntVar(value=1)
-        filter_status_var = tk.StringVar()
+        ).grid(row=0, column=6, sticky="w", padx=(0, SPACING["xs"]), pady=(SPACING["sm"], 2))
         min_count_spinbox = tk.Spinbox(
             filter_frame,
             from_=1,
             to=max_count,
-            width=5,
+            width=6,
             textvariable=min_count_var,
             font=self.ui_font("size"),
             command=lambda: refresh_statistics_view(),
             relief="solid",
             bd=1,
         )
-        min_count_spinbox.pack(side="left", padx=(0, SPACING["md"]), pady=SPACING["sm"])
+        min_count_spinbox.grid(row=1, column=6, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+
+        tk.Label(
+            filter_frame,
+            text="Максимум работ за год",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+        ).grid(row=0, column=7, sticky="w", padx=(0, SPACING["xs"]), pady=(SPACING["sm"], 2))
+        max_count_spinbox = tk.Spinbox(
+            filter_frame,
+            from_=1,
+            to=max_count,
+            width=6,
+            textvariable=max_count_var,
+            font=self.ui_font("size"),
+            command=lambda: refresh_statistics_view(),
+            relief="solid",
+            bd=1,
+        )
+        max_count_spinbox.grid(row=1, column=7, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+
+        tk.Button(
+            filter_frame,
+            text="Применить",
+            command=lambda: refresh_statistics_view(),
+            bg=APP_THEME["primary_alt"],
+            fg=APP_THEME["topbar_text"],
+            activebackground=APP_THEME["primary"],
+            font=self.ui_font("small", "bold"),
+            relief="flat",
+            padx=SPACING["md"],
+        ).grid(row=1, column=8, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+
+        def reset_statistics_filters():
+            year_from_var.set(str(year_min))
+            year_to_var.set(str(year_max))
+            degree_var.set("Все степени")
+            query_var.set("")
+            min_count_var.set("1")
+            max_count_var.set("")
+            refresh_statistics_view()
+
+        tk.Button(
+            filter_frame,
+            text="Сброс",
+            command=reset_statistics_filters,
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["text"],
+            activebackground=APP_THEME["line"],
+            font=self.ui_font("small", "bold"),
+            relief="flat",
+            padx=SPACING["md"],
+        ).grid(row=1, column=9, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+
         tk.Label(
             filter_frame,
             textvariable=filter_status_var,
             bg=APP_THEME["surface"],
             fg=APP_THEME["muted_text"],
             font=self.ui_font("small"),
-            anchor="w",
-        ).pack(side="left", fill="x", expand=True, padx=(0, SPACING["md"]), pady=SPACING["sm"])
+            anchor="e",
+        ).grid(row=1, column=10, columnspan=2, sticky="ew", padx=(0, SPACING["md"]), pady=(0, SPACING["sm"]))
 
         content = tk.Frame(sw, bg=APP_THEME["app_background"])
         content.pack(fill="both", expand=True, padx=SPACING["lg"], pady=(0, SPACING["lg"]))
@@ -1185,18 +1517,25 @@ class DissertationReportApp:
         table.pack(fill="both", expand=True, padx=SPACING["md"], pady=(0, SPACING["md"]))
 
         def refresh_statistics_view(*_):
-            try:
-                min_count = max(1, min(max_count, int(min_count_var.get())))
-            except (tk.TclError, ValueError):
-                min_count = 1
-            if min_count_var.get() != min_count:
-                min_count_var.set(min_count)
-
-            filtered_stats = self.filter_year_statistics_by_min_count(stats, min_count)
+            criteria = {
+                "year_from": year_from_var.get(),
+                "year_to": year_to_var.get(),
+                "degree": degree_var.get(),
+                "query": query_var.get(),
+                "min_count": min_count_var.get(),
+                "max_count": max_count_var.get(),
+            }
+            filtered_df = self.filter_statistics_dataframe(df, criteria)
+            filtered_stats = self.build_year_statistics(filtered_df)
             for child in chart_frame.winfo_children():
                 child.destroy()
 
             if filtered_stats["counts"].empty:
+                total_card["value"].config(text="0")
+                total_card["subtitle"].config(text="по текущему фильтру нет работ")
+                period_card["value"].config(text="нет данных")
+                peak_card["value"].config(text="нет данных")
+                peak_card["subtitle"].config(text="нет данных")
                 tk.Label(
                     chart_frame,
                     text="Нет годов с выбранным количеством работ",
@@ -1206,9 +1545,18 @@ class DissertationReportApp:
                 ).pack(fill="both", expand=True)
                 for item in table.get_children():
                     table.delete(item)
-                filter_status_var.set("Годы не найдены. Уменьшите минимум работ.")
+                filter_status_var.set("Нет данных по выбранным условиям.")
                 return
 
+            total_card["value"].config(text=str(filtered_stats["total"]))
+            total_card["subtitle"].config(
+                text=f"в текущей выборке: {filtered_stats['total']} {self.format_work_count(filtered_stats['total'])}"
+            )
+            period_card["value"].config(text=filtered_stats["period"])
+            peak_card["value"].config(text=str(filtered_stats["peak_year"]))
+            peak_card["subtitle"].config(
+                text=f"{filtered_stats['peak_count']} {self.format_work_count(filtered_stats['peak_count'])}"
+            )
             self.create_year_statistics_chart(chart_frame, filtered_stats)
             self.fill_statistics_distribution_table(table, filtered_stats)
             shown_years = len(filtered_stats["counts"])
@@ -1217,8 +1565,10 @@ class DissertationReportApp:
                 f"Работ в выборке: {filtered_stats['total']}."
             )
 
-        min_count_spinbox.bind("<Return>", refresh_statistics_view)
-        min_count_spinbox.bind("<FocusOut>", refresh_statistics_view)
+        for widget in (year_from_entry, year_to_entry, query_entry, min_count_spinbox, max_count_spinbox):
+            widget.bind("<Return>", refresh_statistics_view)
+            widget.bind("<FocusOut>", refresh_statistics_view)
+        degree_combo.bind("<<ComboboxSelected>>", refresh_statistics_view)
         refresh_statistics_view()
 
         tk.Button(
