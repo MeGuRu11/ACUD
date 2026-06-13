@@ -87,10 +87,12 @@ class DissertationReportApp:
         self.status_var.set("Готово. Данные будут сохранены в локальную базу SQLite.")
         self.task_queue = queue.Queue();
         self.queue_after_id = None
+        self.login_after_id = None
         self.is_closing = False
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.schedule_process_queue()
         self.ui_built = False;
-        self.root.after(100, self.show_login)
+        self.schedule_login()
 
     def center_root_window(self, width, height):
         self.root.deiconify()
@@ -207,6 +209,9 @@ class DissertationReportApp:
                 print(f"Ошибка загрузки: {e}")
 
     def show_login(self):
+        self.login_after_id = None
+        if self.is_closing:
+            return
         if not self.user_manager.has_users():
             setup = InitialAdminDialog(self.root, self.user_manager)
             if not setup.result:
@@ -1594,9 +1599,11 @@ class DissertationReportApp:
         self.current_user = None;
         self.current_role = None;
         self.status_var.set("Готово. Данные будут сохранены в локальную базу SQLite.");
-        self.root.after(100, self.show_login)
+        self.schedule_login()
 
     def on_closing(self):
+        if self.is_closing:
+            return
         self.is_closing = True
         self.cancel_scheduled_callbacks()
         self.save_persisted_data();
@@ -1616,17 +1623,35 @@ class DissertationReportApp:
         except tk.TclError:
             self.queue_after_id = None
 
-    def cancel_scheduled_callbacks(self):
-        if not self.queue_after_id:
+    def schedule_login(self):
+        if self.is_closing:
             return
         try:
-            self.root.after_cancel(self.queue_after_id)
+            if not self.root.winfo_exists():
+                return
+            self.login_after_id = self.root.after(100, self.show_login)
         except tk.TclError:
-            pass
-        finally:
-            self.queue_after_id = None
+            self.login_after_id = None
+
+    def cancel_scheduled_callbacks(self):
+        if self.queue_after_id:
+            try:
+                self.root.after_cancel(self.queue_after_id)
+            except tk.TclError:
+                pass
+            finally:
+                self.queue_after_id = None
+        if self.login_after_id:
+            try:
+                self.root.after_cancel(self.login_after_id)
+            except tk.TclError:
+                pass
+            finally:
+                self.login_after_id = None
 
     def destroy_root_after_cancel(self):
+        if self.is_closing:
+            return
         self.is_closing = True
         self.cancel_scheduled_callbacks()
         self.root.destroy()

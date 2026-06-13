@@ -95,8 +95,12 @@ def test_process_queue_after_callback_is_cancelled_on_close():
 
     assert "self.is_closing" in app_source
     assert "self.queue_after_id" in app_source
+    assert "self.login_after_id" in app_source
+    assert 'self.root.protocol("WM_DELETE_WINDOW", self.on_closing)' in app_source
     assert "after_cancel(self.queue_after_id)" in app_source
+    assert "after_cancel(self.login_after_id)" in app_source
     assert "self.schedule_process_queue()" in app_source
+    assert "self.schedule_login()" in app_source
 
 
 def test_main_window_is_maximized_after_successful_login():
