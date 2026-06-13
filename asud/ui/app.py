@@ -103,6 +103,15 @@ class DissertationReportApp:
         y = max(0, (screen_height - height) // 2)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
 
+    def center_toplevel_window(self, window, width, height):
+        window.deiconify()
+        window.update_idletasks()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        x = max(0, (screen_width - width) // 2)
+        y = max(0, (screen_height - height) // 2)
+        window.geometry(f"{width}x{height}+{x}+{y}")
+
     def maximize_main_window(self):
         self.root.deiconify()
         self.root.update_idletasks()
@@ -112,6 +121,16 @@ class DissertationReportApp:
             screen_width = self.root.winfo_screenwidth()
             screen_height = self.root.winfo_screenheight()
             self.root.geometry(f"{screen_width}x{screen_height}+0+0")
+
+    def maximize_toplevel_window(self, window):
+        window.deiconify()
+        window.update_idletasks()
+        try:
+            window.state("zoomed")
+        except tk.TclError:
+            screen_width = window.winfo_screenwidth()
+            screen_height = window.winfo_screenheight()
+            window.geometry(f"{screen_width}x{screen_height}+0+0")
 
     def set_app_icon(self):
         self.app_icon_image = None
@@ -1016,9 +1035,7 @@ class DissertationReportApp:
         detail.title(f"Карточка записи | {title_value}")
         detail_width = min(1160, max(980, detail.winfo_screenwidth() - 160))
         detail_height = min(800, max(680, detail.winfo_screenheight() - 140))
-        detail_x = max(0, (detail.winfo_screenwidth() - detail_width) // 2)
-        detail_y = max(0, (detail.winfo_screenheight() - detail_height) // 2)
-        detail.geometry(f"{detail_width}x{detail_height}+{detail_x}+{detail_y}")
+        self.center_toplevel_window(detail, detail_width, detail_height)
         detail.minsize(960, 660)
         detail.configure(bg=APP_THEME["app_background"])
         configure_ttk_style(detail, self.config["theme"])
@@ -1481,8 +1498,8 @@ class DissertationReportApp:
 
         sw = tk.Toplevel(self.root)
         sw.title("Статистика")
-        sw.geometry("1180x760")
         sw.minsize(1080, 680)
+        self.maximize_toplevel_window(sw)
         sw.configure(bg=APP_THEME["app_background"])
         configure_ttk_style(sw, self.config["theme"])
 

@@ -160,3 +160,12 @@ def test_record_detail_view_uses_sectioned_polished_layout():
     assert "Служебная информация" in app_source
     assert "detail_footer" in app_source
     assert "detail_canvas" in app_source
+
+
+def test_detail_and_statistics_windows_have_explicit_window_placement():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "center_toplevel_window" in app_source
+    assert "self.center_toplevel_window(detail" in app_source
+    assert "maximize_toplevel_window" in app_source
+    assert "self.maximize_toplevel_window(sw)" in app_source

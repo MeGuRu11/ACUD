@@ -31,3 +31,33 @@ def test_center_root_window_places_main_window_near_screen_center():
         assert abs(y - expected_y) <= 2, geometry
     finally:
         root.destroy()
+
+
+def test_center_toplevel_window_places_child_window_near_screen_center():
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+    app = DissertationReportApp.__new__(DissertationReportApp)
+    app.root = root
+    child = tk.Toplevel(root)
+    child.withdraw()
+
+    try:
+        app.center_toplevel_window(child, 820, 520)
+        child.update_idletasks()
+        geometry = child.geometry()
+        width = child.winfo_width()
+        height = child.winfo_height()
+        x = child.winfo_x()
+        y = child.winfo_y()
+        expected_x = (child.winfo_screenwidth() - width) // 2
+        expected_y = (child.winfo_screenheight() - height) // 2
+
+        assert width == 820, geometry
+        assert height == 520, geometry
+        assert abs(x - expected_x) <= 2, geometry
+        assert abs(y - expected_y) <= 2, geometry
+    finally:
+        root.destroy()
