@@ -148,6 +148,17 @@ def test_table_and_detail_view_use_clean_display_values():
     assert 'self.tree.bind("<Return>", self.open_selected_record_view)' in app_source
 
 
+def test_sidebar_uses_record_card_for_editing_without_separate_edit_button():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+    sidebar_source = app_source[app_source.index("def build_sidebar"):app_source.index("def add_nav_group")]
+
+    assert '"Открыть запись"' in sidebar_source
+    assert '"Редактировать"' not in sidebar_source
+    assert "self.btn_edit" not in app_source
+    assert "edit_selected" not in app_source
+    assert "<Control-e>" not in app_source
+
+
 def test_record_detail_view_uses_sectioned_polished_layout():
     app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
 

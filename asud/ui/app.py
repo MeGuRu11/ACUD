@@ -256,7 +256,7 @@ class DissertationReportApp:
             self.destroy_root_after_cancel()
 
     def update_permissions(self):
-        mutation_buttons = [self.btn_load, self.btn_add, self.btn_edit, self.btn_delete]
+        mutation_buttons = [self.btn_load, self.btn_add, self.btn_delete]
         if self.current_role == "admin":
             for button in mutation_buttons + [self.btn_users]:
                 button.config(state="normal")
@@ -392,7 +392,6 @@ class DissertationReportApp:
         self.btn_load = self.create_nav_button("Загрузить Excel", self.load_excel_async, active=True)
         self.btn_add = self.create_nav_button("Новая запись", self.add_record)
         self.btn_open_record = self.create_nav_button("Открыть запись", self.open_selected_record_view)
-        self.btn_edit = self.create_nav_button("Редактировать", self.edit_selected)
         self.btn_delete = self.create_nav_button("Удалить", self.delete_selected, variant="danger")
 
         self.add_nav_group("Отбор")
@@ -610,7 +609,6 @@ class DissertationReportApp:
         self.root.bind("<Control-f>", lambda e: self.search_entry.focus_set())
         self.root.bind("<Control-s>", lambda e: self.export_excel());
         self.root.bind("<Delete>", lambda e: self.delete_selected());
-        self.root.bind("<Control-e>", lambda e: self.edit_selected())
 
     def _on_year_focus_in(self):
         if self.year_entry.get() == "2023 или 2020-2024": self.year_entry.delete(0, tk.END); self.year_entry.config(
@@ -831,24 +829,6 @@ class DissertationReportApp:
             messagebox.showinfo("Успех", "Запись добавлена")
 
         RecordDialog(self.root, "Добавить", self.data_model.get_columns(), on_save=on_save)
-
-    def edit_selected(self):
-        if self.current_role not in ("admin", "editor"): return messagebox.showerror("Доступ запрещён")
-        sel = self.tree.selection()
-        if not sel: return messagebox.showwarning("Редактирование", "Выберите запись.")
-        oi = int(sel[0]);
-        rd = self.data_model.get_row_by_original_index(oi)
-        if rd is None: return messagebox.showerror("Ошибка", "Запись не найдена.")
-
-        def on_save(nr):
-            self.data_model.update_record(oi, nr);
-            self.display_data();
-            self.save_persisted_data();
-            self.log_action(
-                f"Отредактировано: {oi}");
-            messagebox.showinfo("Успех", "Запись обновлена")
-
-        RecordDialog(self.root, "Редактировать", self.data_model.get_columns(), initial_values=rd, on_save=on_save)
 
     def open_selected_record_view(self, event=None):
         if event is not None and hasattr(event, "x") and hasattr(event, "y"):

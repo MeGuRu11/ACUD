@@ -1068,46 +1068,227 @@ class RecordDialog(DialogBase):
                     self.initial_values[key] = "" if pd.isna(value) else str(value)
         self.entries = {}
         self.comboboxes = {}
-        super().__init__(parent, title, "680x560", resizable=True)
-        self.add_header(title, "Заполните карточку записи. Пустые поля не будут затирать существующие значения.")
-        body = self.body_frame()
-        canvas = tk.Canvas(body, bg=APP_THEME["surface"], highlightthickness=0)
-        scrollbar = ttk.Scrollbar(body, orient="vertical", command=canvas.yview)
-        scroll_frame = tk.Frame(canvas, bg=APP_THEME["surface"])
-        scroll_frame.columnconfigure(1, weight=1)
-        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        row = 0
-        for column in columns:
-            if column == "_original_index":
-                continue
-            if column == "Искомая степень":
-                combo = self.add_combobox(
-                    scroll_frame,
-                    row,
-                    column,
-                    DEGREE_OPTIONS,
-                    initial=self.initial_values.get(column, ""),
-                    width=44,
-                )
-                self.comboboxes[column] = combo
-            else:
-                entry = self.add_field(scroll_frame, row, column, width=46, initial=self.initial_values.get(column, ""))
-                self.entries[column] = entry
-            row += 1
-
-        footer = self.add_footer()
-        create_dialog_button(footer, "Сохранить", self.save).pack(
-            side="left", padx=SPACING["panel"], pady=SPACING["md"]
-        )
-        create_dialog_button(footer, "Отмена", self.close, variant="secondary").pack(
-            side="left", padx=(0, SPACING["sm"]), pady=SPACING["md"]
-        )
+        super().__init__(parent, title, "980x720", resizable=True)
+        self.build_record_card(title)
         self.wait(self.close)
+
+    def get_record_sections(self):
+        visible_columns = [column for column in self.columns if column != "_original_index"]
+        primary_fields = [
+            "ФИО",
+            "Название диссертации",
+            "Год защиты",
+            "Дата защиты диссертации",
+            "Искомая степень",
+            "Специальность",
+            "Диссертационный совет",
+        ]
+        supervisor_fields = [
+            "1 Научный руководитель (консультант)",
+            "2 Научный руководитель (консультант)",
+        ]
+        service_fields = [
+            "Примечания",
+            "Информация о лишении степени",
+        ]
+        sections = []
+        assigned = set()
+        for title, wanted_fields in (
+            ("Основные сведения", primary_fields),
+            ("Научное сопровождение", supervisor_fields),
+            ("Служебная информация", service_fields),
+        ):
+            fields = [field for field in wanted_fields if field in visible_columns]
+            if fields:
+                sections.append((title, fields))
+                assigned.update(fields)
+        extra_fields = [field for field in visible_columns if field not in assigned]
+        if extra_fields:
+            sections.append(("Дополнительные сведения", extra_fields))
+        return sections
+
+    def is_long_record_field(self, column):
+        column_lower = column.lower()
+        return any(marker in column_lower for marker in ("название", "примеч", "информация"))
+
+    def build_record_card(self, title):
+        self.dialog.configure(bg=APP_THEME["app_background"])
+        header_title = "Новая запись" if title == "Добавить" else title
+        header = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=112)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        tk.Label(
+            header,
+            text=header_title,
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=ui_font("title", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["lg"], 2))
+        tk.Label(
+            header,
+            text="Заполните карточку записи. Поля сгруппированы так же, как в просмотре записи.",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=ui_font("small"),
+            anchor="w",
+            justify="left",
+            wraplength=760,
+        ).pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+
+        record_footer = tk.Frame(self.dialog, bg=APP_THEME["surface"], height=76)
+        record_footer.pack(side="bottom", fill="x")
+        record_footer.pack_propagate(False)
+        tk.Label(
+            record_footer,
+            text="Проверьте данные перед сохранением записи.",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small"),
+            anchor="w",
+        ).pack(side="left", fill="x", expand=True, padx=SPACING["lg"], pady=SPACING["md"])
+        actions = tk.Frame(record_footer, bg=APP_THEME["surface"])
+        actions.pack(side="right", padx=SPACING["lg"], pady=SPACING["md"])
+        create_dialog_button(actions, "Сохранить", self.save, width=18).pack(side="left", padx=(0, SPACING["sm"]))
+        create_dialog_button(actions, "Отмена", self.close, variant="secondary", width=14).pack(side="left")
+
+        content_shell = tk.Frame(self.dialog, bg=APP_THEME["app_background"])
+        content_shell.pack(fill="both", expand=True)
+        self.record_canvas = tk.Canvas(content_shell, bg=APP_THEME["app_background"], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(content_shell, orient="vertical", command=self.record_canvas.yview)
+        scroll_frame = tk.Frame(self.record_canvas, bg=APP_THEME["app_background"])
+        scroll_frame.bind(
+            "<Configure>",
+            lambda e: self.record_canvas.configure(scrollregion=self.record_canvas.bbox("all")),
+        )
+        scroll_id = self.record_canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        self.record_canvas.configure(yscrollcommand=scrollbar.set)
+        self.record_canvas.pack(side="left", fill="both", expand=True, padx=(SPACING["lg"], 0), pady=SPACING["lg"])
+        scrollbar.pack(side="right", fill="y", padx=(0, SPACING["lg"]), pady=SPACING["lg"])
+        self.record_canvas.bind("<Configure>", lambda e: self.record_canvas.itemconfigure(scroll_id, width=e.width))
+
+        for section_title, section_columns in self.get_record_sections():
+            section = self.create_record_section(scroll_frame, section_title)
+            grid_row = 0
+            grid_column = 0
+            for column in section_columns:
+                if self.is_long_record_field(column):
+                    if grid_column != 0:
+                        grid_row += 1
+                        grid_column = 0
+                    self.create_record_field(section, column, grid_row, column_index=0, columnspan=2)
+                    grid_row += 1
+                    grid_column = 0
+                else:
+                    self.create_record_field(section, column, grid_row, column_index=grid_column)
+                    if grid_column == 0:
+                        grid_column = 1
+                    else:
+                        grid_row += 1
+                        grid_column = 0
+
+    def create_record_section(self, parent, title):
+        section = tk.Frame(
+            parent,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        section.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+        tk.Label(
+            section,
+            text=title,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=ui_font("heading", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], SPACING["sm"]))
+        content = tk.Frame(section, bg=APP_THEME["surface"])
+        content.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+        content.columnconfigure(0, weight=1, uniform="record_dialog_fields")
+        content.columnconfigure(1, weight=1, uniform="record_dialog_fields")
+        return content
+
+    def create_record_field(self, parent, column, row, column_index=0, columnspan=1):
+        padx = (0, SPACING["md"]) if column_index == 0 and columnspan == 1 else (0, 0)
+        field = tk.Frame(parent, bg=APP_THEME["surface"])
+        field.grid(
+            row=row,
+            column=column_index,
+            columnspan=columnspan,
+            sticky="ew",
+            padx=padx,
+            pady=(0, SPACING["md"]),
+        )
+        field.columnconfigure(0, weight=1)
+        tk.Label(
+            field,
+            text=column,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small", "bold"),
+            anchor="w",
+        ).grid(row=0, column=0, sticky="ew", pady=(0, SPACING["xs"]))
+
+        initial = self.initial_values.get(column, "")
+        if column == "Искомая степень":
+            combo = ttk.Combobox(
+                field,
+                values=DEGREE_OPTIONS,
+                state="readonly",
+                font=ui_font("size"),
+            )
+            combo.set(initial if initial else DEGREE_OPTIONS[0])
+            combo.grid(row=1, column=0, sticky="ew", ipady=SPACING["xs"])
+            self.comboboxes[column] = combo
+            return combo
+
+        if self.is_long_record_field(column):
+            height = 4 if "название" in column.lower() else 3
+            widget = tk.Text(
+                field,
+                height=height,
+                wrap="word",
+                bg=APP_THEME["surface_soft"],
+                fg=APP_THEME["text"],
+                insertbackground=APP_THEME["text"],
+                relief="flat",
+                bd=0,
+                highlightthickness=1,
+                highlightbackground=APP_THEME["line"],
+                highlightcolor=APP_THEME["primary_alt"],
+                font=ui_font("size"),
+                padx=SPACING["sm"],
+                pady=SPACING["sm"],
+            )
+            widget.insert("1.0", initial)
+            widget.grid(row=1, column=0, sticky="ew")
+            self.entries[column] = widget
+            return widget
+
+        widget = tk.Entry(
+            field,
+            width=36,
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["text"],
+            insertbackground=APP_THEME["text"],
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=APP_THEME["line"],
+            highlightcolor=APP_THEME["primary_alt"],
+            font=ui_font("size"),
+        )
+        widget.insert(0, initial)
+        widget.grid(row=1, column=0, sticky="ew", ipady=SPACING["xs"])
+        enable_entry_shortcuts(widget)
+        self.entries[column] = widget
+        return widget
+
+    def read_record_widget_value(self, widget):
+        if isinstance(widget, tk.Text):
+            return widget.get("1.0", "end-1c").strip()
+        return widget.get().strip()
 
     def save(self):
         new_record = {}
@@ -1117,7 +1298,7 @@ class RecordDialog(DialogBase):
             if column == "Искомая степень" and column in self.comboboxes:
                 value = self.comboboxes[column].get().strip()
             elif column in self.entries:
-                value = self.entries[column].get().strip()
+                value = self.read_record_widget_value(self.entries[column])
             else:
                 value = ""
             if column == "Дата защиты диссертации" and value and not re.match(r"\d{2}\.\d{2}\.\d{4}", value):

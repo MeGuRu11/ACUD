@@ -84,3 +84,18 @@ def test_login_dialog_uses_dedicated_clock_row_and_larger_fields():
     assert ".place(" not in login_source[login_source.index("def build_clock_widget"):login_source.index("def update_clock")]
     assert "ipady=SPACING[\"sm\"]" in login_source
     assert "width=42" in login_source
+
+
+def test_record_dialog_uses_same_sectioned_card_style_as_detail_view():
+    source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+    record_source = source[source.index("class RecordDialog"):]
+
+    assert "build_record_card" in record_source
+    assert "get_record_sections" in record_source
+    assert "create_record_section" in record_source
+    assert "create_record_field" in record_source
+    assert "record_canvas" in record_source
+    assert "record_footer" in record_source
+    assert "Основные сведения" in record_source
+    assert "Научное сопровождение" in record_source
+    assert "Служебная информация" in record_source
