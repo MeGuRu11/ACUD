@@ -9,6 +9,8 @@ import pandas as pd
 from asud.config import DEGREE_OPTIONS
 from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, configure_ttk_style
 
+LOGIN_DIALOG_SIZE = "520x440"
+
 
 def ui_font(size_key="size", weight=None):
     font = (FONT["family"], FONT[size_key])
@@ -45,7 +47,9 @@ def create_dialog_button(parent, text, command, variant="primary", width=14):
 class DialogBase:
     def __init__(self, parent, title, size, resizable=False):
         self.parent = parent
+        self.initial_size = size
         self.dialog = tk.Toplevel(parent)
+        self.dialog.withdraw()
         self.dialog.title(title)
         self.dialog.geometry(size)
         self.dialog.configure(bg=APP_THEME["surface"])
@@ -53,6 +57,16 @@ class DialogBase:
         self.dialog.grab_set()
         self.dialog.resizable(resizable, resizable)
         configure_ttk_style(self.dialog)
+
+    def requested_size(self):
+        try:
+            width_text, height_text = self.initial_size.split("x", 1)
+            width = int(width_text)
+            height = int(height_text)
+        except (AttributeError, ValueError):
+            width = self.dialog.winfo_reqwidth()
+            height = self.dialog.winfo_reqheight()
+        return width, height
 
     def add_header(self, title, subtitle=None):
         header = tk.Frame(self.dialog, bg=APP_THEME["topbar"])
@@ -137,17 +151,32 @@ class DialogBase:
         footer.pack(fill="x", side="bottom", padx=0, pady=0)
         return footer
 
-    def center(self):
+    def center_on_screen(self):
+        try:
+            if not self.parent.winfo_viewable():
+                self.dialog.transient("")
+        except tk.TclError:
+            pass
         self.dialog.update_idletasks()
-        width = self.dialog.winfo_width()
-        height = self.dialog.winfo_height()
-        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        requested_width, requested_height = self.requested_size()
+        width = max(self.dialog.winfo_width(), self.dialog.winfo_reqwidth(), requested_width)
+        height = max(self.dialog.winfo_height(), self.dialog.winfo_reqheight(), requested_height)
+        screen_width = self.dialog.winfo_screenwidth()
+        screen_height = self.dialog.winfo_screenheight()
+        x = max(0, (screen_width - width) // 2)
+        y = max(0, (screen_height - height) // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        self.dialog.deiconify()
+        self.dialog.update_idletasks()
+        self.dialog.lift()
+        self.dialog.focus_force()
+
+    def center(self):
+        self.center_on_screen()
 
     def wait(self, on_close):
         self.dialog.protocol("WM_DELETE_WINDOW", on_close)
-        self.center()
+        self.center_on_screen()
         self.parent.wait_window(self.dialog)
 
 
@@ -155,20 +184,79 @@ class LoginDialog(DialogBase):
     def __init__(self, parent, user_manager):
         self.user_manager = user_manager
         self.result = None
-        super().__init__(parent, "Вход в систему", "430x330")
-        self.add_header("Вход в систему", "Введите логин и пароль для работы с реестром диссертаций.")
-        body = self.body_frame()
-        form = self.form_frame(body)
+        super().__init__(parent, "Вход в систему", LOGIN_DIALOG_SIZE)
+        self.build_login_card()
+        self.dialog.bind("<Return>", lambda e: self.login())
+        self.entry_login.focus_set()
+        self.wait(self.cancel)
+
+    def build_login_card(self):
+        hero = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=140)
+        hero.pack(fill="x")
+        hero.pack_propagate(False)
+
+        badge = tk.Frame(hero, bg=APP_THEME["primary_alt"], width=52, height=52)
+        badge.pack(side="left", padx=(SPACING["lg"], SPACING["panel"]), pady=SPACING["lg"])
+        badge.pack_propagate(False)
+        tk.Label(
+            badge,
+            text="АС",
+            bg=APP_THEME["primary_alt"],
+            fg=APP_THEME["topbar_text"],
+            font=ui_font("heading", "bold"),
+        ).pack(expand=True)
+
+        hero_text = tk.Frame(hero, bg=APP_THEME["topbar"])
+        hero_text.pack(side="left", fill="both", expand=True, pady=SPACING["lg"], padx=(0, SPACING["lg"]))
+        tk.Label(
+            hero_text,
+            text="АСУД",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=ui_font("small", "bold"),
+            anchor="w",
+        ).pack(fill="x", pady=(0, 2))
+        tk.Label(
+            hero_text,
+            text="Добро пожаловать",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=(FONT["family"], 22, "bold"),
+            anchor="w",
+        ).pack(fill="x")
+        tk.Label(
+            hero_text,
+            text="Войдите, чтобы работать с реестром диссертаций.",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=ui_font("size"),
+            anchor="w",
+        ).pack(fill="x", pady=(4, 0))
+
+        body = self.body_frame(padx=SPACING["lg"], pady=SPACING["lg"])
+        card = tk.Frame(
+            body,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        card.pack(fill="both", expand=True)
+        card.columnconfigure(0, weight=1)
+
+        form = self.form_frame(card)
+        form.pack(fill="x", padx=SPACING["panel"], pady=(SPACING["panel"], SPACING["sm"]))
         self.entry_login = self.add_field(form, 0, "Логин")
         self.entry_password = self.add_field(form, 1, "Пароль", show="*")
 
         footer = self.add_footer()
-        create_dialog_button(footer, "Войти", self.login).pack(side="left", padx=SPACING["panel"], pady=SPACING["md"])
+        create_dialog_button(footer, "Войти", self.login, width=16).pack(
+            side="left", padx=SPACING["lg"], pady=SPACING["md"]
+        )
         create_dialog_button(footer, "Отмена", self.cancel, variant="secondary").pack(
             side="left", padx=(0, SPACING["sm"]), pady=SPACING["md"]
         )
         tk.Button(
-            body,
+            card,
             text="Зарегистрировать нового пользователя",
             command=self.open_registration,
             bg=APP_THEME["surface"],
@@ -178,10 +266,7 @@ class LoginDialog(DialogBase):
             font=ui_font("small", "bold"),
             relief="flat",
             cursor="hand2",
-        ).pack(anchor="w", pady=(SPACING["sm"], 0))
-        self.dialog.bind("<Return>", lambda e: self.login())
-        self.entry_login.focus_set()
-        self.wait(self.cancel)
+        ).pack(anchor="w", padx=SPACING["panel"], pady=(0, SPACING["panel"]))
 
     def open_registration(self):
         registration = RegistrationDialog(self.dialog, self.user_manager)

@@ -1,0 +1,43 @@
+import tkinter as tk
+
+import pytest
+
+from asud.ui import dialogs
+
+
+class FakeUserManager:
+    def authenticate(self, username, password):
+        return False, None, None
+
+
+def test_login_dialog_centers_real_requested_window_size(monkeypatch):
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+
+    def no_wait(self, on_close):
+        self.dialog.protocol("WM_DELETE_WINDOW", on_close)
+        self.center_on_screen()
+
+    monkeypatch.setattr(dialogs.DialogBase, "wait", no_wait)
+    login = dialogs.LoginDialog(root, FakeUserManager())
+    root.update_idletasks()
+
+    geometry = login.dialog.geometry()
+    width = login.dialog.winfo_width()
+    height = login.dialog.winfo_height()
+    x = login.dialog.winfo_x()
+    y = login.dialog.winfo_y()
+    expected_x = (login.dialog.winfo_screenwidth() - width) // 2
+    expected_y = (login.dialog.winfo_screenheight() - height) // 2
+
+    try:
+        assert width >= 500, geometry
+        assert height >= 420, geometry
+        assert abs(x - expected_x) <= 2, geometry
+        assert abs(y - expected_y) <= 2, geometry
+    finally:
+        login.dialog.destroy()
+        root.destroy()
