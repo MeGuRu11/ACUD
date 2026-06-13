@@ -38,6 +38,7 @@ except ImportError:
 try:
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    from matplotlib.ticker import MaxNLocator
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
@@ -833,27 +834,251 @@ class DissertationReportApp:
 
         ColumnSelectorDialog(self.root, ed.columns.tolist(), on_cols)
 
+    def build_year_statistics(self, df):
+        years = pd.to_numeric(df["Год защиты"], errors="coerce").dropna().astype(int)
+        counts = years.value_counts().sort_index()
+        if counts.empty:
+            return {
+                "counts": counts,
+                "total": 0,
+                "period": "нет данных",
+                "peak_year": None,
+                "peak_count": 0,
+            }
+        peak_year = int(counts.idxmax())
+        peak_count = int(counts.loc[peak_year])
+        return {
+            "counts": counts,
+            "total": int(counts.sum()),
+            "period": f"{int(counts.index.min())}-{int(counts.index.max())}",
+            "peak_year": peak_year,
+            "peak_count": peak_count,
+        }
+
+    def format_work_count(self, count):
+        count = int(count)
+        if count % 10 == 1 and count % 100 != 11:
+            return "работа"
+        if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+            return "работы"
+        return "работ"
+
+    def create_statistics_card(self, parent, title, value, subtitle):
+        card = tk.Frame(
+            parent,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        card.pack(side="left", fill="x", expand=True, padx=(0, SPACING["md"]))
+        tk.Label(
+            card,
+            text=title,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["md"], pady=(SPACING["md"], 2))
+        tk.Label(
+            card,
+            text=value,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("title", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["md"])
+        tk.Label(
+            card,
+            text=subtitle,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("caption"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["md"], pady=(2, SPACING["md"]))
+        return card
+
+    def create_year_statistics_chart(self, parent, stats):
+        counts = stats["counts"]
+        years = [str(int(year)) for year in counts.index]
+        values = [int(value) for value in counts.values]
+        fig, ax = plt.subplots(figsize=(8.8, 4.8), dpi=100)
+        fig.patch.set_facecolor(APP_THEME["surface"])
+        ax.set_facecolor(APP_THEME["surface"])
+
+        bars = ax.bar(
+            years,
+            values,
+            color=APP_THEME["primary_alt"],
+            edgecolor=APP_THEME["primary"],
+            linewidth=0.8,
+        )
+        ax.set_title("Количество защищённых работ по годам", loc="left", pad=12, fontsize=13, fontweight="bold")
+        ax.set_xlabel("Год")
+        ax.set_ylabel("Количество работ")
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.set_ylim(0, max(values) + 1)
+        ax.grid(axis="y", color=APP_THEME["line"], linestyle="--", linewidth=0.8, alpha=0.75)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color(APP_THEME["line"])
+        ax.spines["bottom"].set_color(APP_THEME["line"])
+        ax.tick_params(axis="x", labelrotation=0)
+
+        for bar, value in zip(bars, values):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.05,
+                str(value),
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                color=APP_THEME["text"],
+                fontweight="bold",
+            )
+
+        annotation = ax.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(12, 12),
+            textcoords="offset points",
+            bbox={"boxstyle": "round,pad=0.35", "fc": APP_THEME["text"], "ec": APP_THEME["text"], "alpha": 0.92},
+            color=APP_THEME["topbar_text"],
+            arrowprops={"arrowstyle": "->", "color": APP_THEME["text"]},
+        )
+        annotation.set_visible(False)
+        fig.tight_layout()
+
+        canvas = FigureCanvasTkAgg(fig, master=parent)
+
+        def on_motion(event):
+            visible = annotation.get_visible()
+            if event.inaxes != ax:
+                if visible:
+                    annotation.set_visible(False)
+                    canvas.draw_idle()
+                return
+            for bar, year, count in zip(bars, years, values):
+                contains, _ = bar.contains(event)
+                if contains:
+                    annotation.xy = (bar.get_x() + bar.get_width() / 2, bar.get_height())
+                    annotation.set_text(f"{year}: {count} {self.format_work_count(count)}")
+                    annotation.set_visible(True)
+                    canvas.draw_idle()
+                    return
+            if visible:
+                annotation.set_visible(False)
+                canvas.draw_idle()
+
+        canvas.mpl_connect("motion_notify_event", on_motion)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        return canvas
+
     def show_statistics(self):
         if not MATPLOTLIB_AVAILABLE: return messagebox.showerror("Ошибка", "Требуется matplotlib")
         if self.data_model.data.empty: return messagebox.showwarning("Нет данных")
         df = self.data_model.data.copy()
-        if "Год защиты" not in df.columns or df["Год защиты"].isnull().all(): return messagebox.showwarning(
-            "Нет данных о годах")
-        yc = df["Год защиты"].value_counts().sort_index()
-        fig, ax = plt.subplots(figsize=(8, 5));
-        ax.bar(yc.index.astype(str), yc.values)
-        ax.set_xlabel("Год");
-        ax.set_ylabel("Количество");
-        ax.set_title("Распределение защит по годам");
-        ax.tick_params(axis='x', rotation=45)
+        if "Год защиты" not in df.columns: return messagebox.showwarning("Нет данных о годах")
+        stats = self.build_year_statistics(df)
+        if stats["counts"].empty: return messagebox.showwarning("Нет данных о годах")
 
-        sw = tk.Toplevel(self.root);
-        sw.title("Статистика");
-        sw.geometry("800x600")
+        sw = tk.Toplevel(self.root)
+        sw.title("Статистика")
+        sw.geometry("1060x720")
+        sw.minsize(960, 640)
+        sw.configure(bg=APP_THEME["app_background"])
+        configure_ttk_style(sw, self.config["theme"])
 
-        canvas = FigureCanvasTkAgg(fig, master=sw)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        header = tk.Frame(sw, bg=APP_THEME["topbar"], height=72)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        tk.Label(
+            header,
+            text="Статистика по годам защиты",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=self.ui_font("title", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], 0))
+        tk.Label(
+            header,
+            text="Сводка по загруженным работам и распределение защит по календарным годам.",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=self.ui_font("small"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(2, SPACING["md"]))
+
+        cards = tk.Frame(sw, bg=APP_THEME["app_background"])
+        cards.pack(fill="x", padx=SPACING["lg"], pady=SPACING["md"])
+        self.create_statistics_card(
+            cards,
+            "Всего работ",
+            str(stats["total"]),
+            f"учтено в статистике: {stats['total']} {self.format_work_count(stats['total'])}",
+        )
+        self.create_statistics_card(cards, "Период", stats["period"], "по полю «Год защиты»")
+        self.create_statistics_card(
+            cards,
+            "Пиковый год",
+            str(stats["peak_year"]),
+            f"{stats['peak_count']} {self.format_work_count(stats['peak_count'])}",
+        )
+
+        content = tk.Frame(sw, bg=APP_THEME["app_background"])
+        content.pack(fill="both", expand=True, padx=SPACING["lg"], pady=(0, SPACING["lg"]))
+        content.columnconfigure(0, weight=4)
+        content.columnconfigure(1, weight=1)
+        content.rowconfigure(0, weight=1)
+
+        chart_frame = tk.Frame(
+            content,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        chart_frame.grid(row=0, column=0, sticky="nsew", padx=(0, SPACING["md"]))
+        self.create_year_statistics_chart(chart_frame, stats)
+
+        side_frame = tk.Frame(
+            content,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        side_frame.grid(row=0, column=1, sticky="nsew")
+        tk.Label(
+            side_frame,
+            text="Распределение",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("size", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["md"], pady=(SPACING["md"], SPACING["sm"]))
+        table = ttk.Treeview(side_frame, columns=("year", "count", "share"), show="headings", height=12)
+        table.heading("year", text="Год")
+        table.heading("count", text="Работ")
+        table.heading("share", text="Доля")
+        table.column("year", width=70, anchor="center")
+        table.column("count", width=70, anchor="center")
+        table.column("share", width=70, anchor="center")
+        table.pack(fill="both", expand=True, padx=SPACING["md"], pady=(0, SPACING["md"]))
+        for year, count in stats["counts"].items():
+            share = int(round((int(count) / stats["total"]) * 100))
+            table.insert("", "end", values=(int(year), int(count), f"{share}%"))
+
+        tk.Button(
+            sw,
+            text="Закрыть",
+            command=sw.destroy,
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["text"],
+            activebackground=APP_THEME["line"],
+            font=self.ui_font("size", "bold"),
+            relief="flat",
+            padx=SPACING["lg"],
+            pady=SPACING["sm"],
+        ).pack(anchor="e", padx=SPACING["lg"], pady=(0, SPACING["md"]))
 
     def manage_users(self):
         if self.current_role != "admin": return messagebox.showerror("Доступ запрещён")
