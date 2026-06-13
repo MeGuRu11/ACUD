@@ -3,14 +3,15 @@
 import re
 import tkinter as tk
 from datetime import datetime
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 import pandas as pd
 
-from asud.config import APP_ICON_SVG, DEGREE_OPTIONS
+from asud.config import APP_ICON_PNG, APP_ICON_SVG, DEGREE_OPTIONS
 from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, configure_ttk_style
 
-LOGIN_DIALOG_SIZE = "520x480"
+LOGIN_DIALOG_SIZE = "520x500"
 
 
 def ui_font(size_key="size", weight=None):
@@ -277,7 +278,10 @@ class DialogBase:
 class LoginDialog(DialogBase):
     def __init__(self, parent, user_manager):
         self.user_manager = user_manager
-        self.icon_asset_path = APP_ICON_SVG
+        self.icon_asset_path = APP_ICON_PNG
+        self.icon_source_path = APP_ICON_SVG
+        self.login_icon_source_image = None
+        self.login_icon_image = None
         self.clock_after_id = None
         self.result = None
         super().__init__(parent, "Вход в систему", LOGIN_DIALOG_SIZE)
@@ -287,23 +291,22 @@ class LoginDialog(DialogBase):
         self.wait(self.cancel)
 
     def build_login_card(self):
-        hero = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=188)
-        hero.pack(fill="x")
-        hero.pack_propagate(False)
+        self.hero_frame = tk.Frame(self.dialog, bg=APP_THEME["topbar"], height=210)
+        self.hero_frame.pack(fill="x")
+        self.hero_frame.pack_propagate(False)
 
-        icon_box = tk.Frame(hero, bg=APP_THEME["primary_alt"], width=56, height=56)
-        icon_box.pack(anchor="center", pady=(SPACING["panel"], SPACING["sm"]))
-        icon_box.pack_propagate(False)
-        tk.Label(
-            icon_box,
-            text="АС",
-            bg=APP_THEME["primary_alt"],
-            fg=APP_THEME["topbar_text"],
-            font=ui_font("heading", "bold"),
-        ).pack(expand=True)
+        self.build_clock_widget(self.hero_frame)
+        self.login_icon_label = tk.Label(
+            self.hero_frame,
+            image=self.load_login_icon(),
+            bg=APP_THEME["topbar"],
+            bd=0,
+            highlightthickness=0,
+        )
+        self.login_icon_label.pack(anchor="center", pady=(SPACING["md"], SPACING["xs"]))
 
         tk.Label(
-            hero,
+            self.hero_frame,
             text="АСУД",
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_text"],
@@ -311,7 +314,7 @@ class LoginDialog(DialogBase):
             anchor="center",
         ).pack(fill="x", padx=SPACING["lg"])
         tk.Label(
-            hero,
+            self.hero_frame,
             text="Добро пожаловать",
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_text"],
@@ -320,7 +323,7 @@ class LoginDialog(DialogBase):
             justify="center",
         ).pack(fill="x", padx=SPACING["lg"], pady=(2, 0))
         tk.Label(
-            hero,
+            self.hero_frame,
             text="Вход в реестр диссертаций",
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_muted"],
@@ -328,7 +331,6 @@ class LoginDialog(DialogBase):
             anchor="center",
             justify="center",
         ).pack(fill="x", padx=SPACING["lg"], pady=(4, 0))
-        self.build_clock_widget(hero)
 
         body = self.body_frame(padx=SPACING["lg"], pady=SPACING["lg"])
         card = tk.Frame(
@@ -367,14 +369,34 @@ class LoginDialog(DialogBase):
             cursor="hand2",
         ).pack(anchor="w", padx=SPACING["panel"], pady=(0, SPACING["panel"]))
 
+    def resolve_asset_path(self, path):
+        asset_path = Path(path)
+        if asset_path.exists():
+            return asset_path
+        return Path(__file__).resolve().parents[2] / path
+
+    def load_login_icon(self):
+        icon_path = self.resolve_asset_path(self.icon_asset_path)
+        if not icon_path.exists():
+            return ""
+        try:
+            self.login_icon_source_image = tk.PhotoImage(file=str(icon_path))
+            scale = max(1, min(self.login_icon_source_image.width(), self.login_icon_source_image.height()) // 64)
+            self.login_icon_image = self.login_icon_source_image.subsample(scale, scale)
+            return self.login_icon_image
+        except tk.TclError:
+            self.login_icon_source_image = None
+            self.login_icon_image = None
+            return ""
+
     def build_clock_widget(self, parent):
         self.login_clock_date_var = tk.StringVar()
         self.login_clock_time_var = tk.StringVar()
-        clock_frame = tk.Frame(parent, bg=APP_THEME["topbar"])
-        clock_frame.pack(anchor="center", pady=(SPACING["sm"], 0))
+        self.clock_frame = tk.Frame(parent, bg=APP_THEME["topbar"])
+        self.clock_frame.place(relx=1.0, x=-SPACING["panel"], y=SPACING["panel"], anchor="ne")
 
         clock_shell = tk.Frame(
-            clock_frame,
+            self.clock_frame,
             bg="#16323c",
             highlightbackground=APP_THEME["primary_alt"],
             highlightthickness=1,

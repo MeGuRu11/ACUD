@@ -128,3 +128,51 @@ def test_login_dialog_clock_widget_uses_required_formats(monkeypatch):
     finally:
         login.dialog.destroy()
         root.destroy()
+
+
+def test_login_dialog_clock_widget_is_visible_inside_hero(monkeypatch):
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+
+    def no_wait(self, on_close):
+        self.dialog.protocol("WM_DELETE_WINDOW", on_close)
+        self.center_on_screen()
+
+    monkeypatch.setattr(dialogs.DialogBase, "wait", no_wait)
+    login = dialogs.LoginDialog(root, FakeUserManager())
+    root.update()
+
+    try:
+        assert login.clock_frame.winfo_ismapped()
+        assert login.clock_frame.winfo_height() > 1
+        assert login.clock_frame.winfo_y() + login.clock_frame.winfo_height() <= login.hero_frame.winfo_height()
+    finally:
+        login.dialog.destroy()
+        root.destroy()
+
+
+def test_login_dialog_uses_app_icon_image_instead_of_text_badge(monkeypatch):
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"Tk is not available: {exc}")
+    root.withdraw()
+
+    def no_wait(self, on_close):
+        self.dialog.protocol("WM_DELETE_WINDOW", on_close)
+        self.center_on_screen()
+
+    monkeypatch.setattr(dialogs.DialogBase, "wait", no_wait)
+    login = dialogs.LoginDialog(root, FakeUserManager())
+    root.update()
+
+    try:
+        assert hasattr(login, "login_icon_image")
+        assert login.login_icon_label.cget("image")
+        assert login.login_icon_label.cget("text") == ""
+    finally:
+        login.dialog.destroy()
+        root.destroy()
