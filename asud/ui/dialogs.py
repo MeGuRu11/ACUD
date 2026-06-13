@@ -1,6 +1,7 @@
 """Tkinter dialogs used by the ASUD application."""
 
 import re
+import sys
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
@@ -375,6 +376,10 @@ class LoginDialog(DialogBase):
         asset_path = Path(path)
         if asset_path.exists():
             return asset_path
+        if hasattr(sys, "_MEIPASS"):
+            bundled_path = Path(sys._MEIPASS) / path
+            if bundled_path.exists():
+                return bundled_path
         return Path(__file__).resolve().parents[2] / path
 
     def load_login_icon(self):

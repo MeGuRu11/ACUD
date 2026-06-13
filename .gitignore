@@ -19,3 +19,7 @@ backups/
 .ruff_cache/
 htmlcov/
 .coverage
+build/
+dist/
+*.spec
+assets/asud_icon.ico

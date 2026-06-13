@@ -169,3 +169,11 @@ def test_detail_and_statistics_windows_have_explicit_window_placement():
     assert "self.center_toplevel_window(detail" in app_source
     assert "maximize_toplevel_window" in app_source
     assert "self.maximize_toplevel_window(sw)" in app_source
+
+
+def test_pyinstaller_bundle_asset_resolution_is_supported():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+    dialogs_source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+
+    assert "sys._MEIPASS" in app_source
+    assert "sys._MEIPASS" in dialogs_source
