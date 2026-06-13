@@ -46,6 +46,21 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 
+TABLE_COLUMN_WIDTHS = {
+    "Год защиты": 96,
+    "ФИО": 230,
+    "Название диссертации": 360,
+    "Диссертационный совет": 210,
+    "Дата защиты диссертации": 175,
+    "Специальность": 190,
+    "Искомая степень": 200,
+    "Информация о лишении степени": 280,
+    "Примечания": 250,
+    "1 Научный руководитель (консультант)": 280,
+    "2 Научный руководитель (консультант)": 280,
+}
+
+
 class DissertationReportApp:
     def __init__(self, root):
         self.root = root;
@@ -71,7 +86,9 @@ class DissertationReportApp:
         self.status_var = tk.StringVar();
         self.status_var.set("Готово. Данные будут сохранены в локальную базу SQLite.")
         self.task_queue = queue.Queue();
-        self.root.after(100, self.process_queue);
+        self.queue_after_id = None
+        self.is_closing = False
+        self.schedule_process_queue()
         self.ui_built = False;
         self.root.after(100, self.show_login)
 
@@ -83,6 +100,16 @@ class DissertationReportApp:
         x = max(0, (screen_width - width) // 2)
         y = max(0, (screen_height - height) // 2)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
+
+    def maximize_main_window(self):
+        self.root.deiconify()
+        self.root.update_idletasks()
+        try:
+            self.root.state("zoomed")
+        except tk.TclError:
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            self.root.geometry(f"{screen_width}x{screen_height}+0+0")
 
     def set_app_icon(self):
         self.app_icon_image = None
@@ -181,7 +208,7 @@ class DissertationReportApp:
         if not self.user_manager.has_users():
             setup = InitialAdminDialog(self.root, self.user_manager)
             if not setup.result:
-                self.root.destroy()
+                self.destroy_root_after_cancel()
                 return
         login = LoginDialog(self.root, self.user_manager)
         if login.result:
@@ -195,7 +222,7 @@ class DissertationReportApp:
             self.update_permissions();
             self.ui_built = True
         else:
-            self.root.destroy()
+            self.destroy_root_after_cancel()
 
     def update_permissions(self):
         mutation_buttons = [self.btn_load, self.btn_add, self.btn_edit, self.btn_delete]
@@ -213,6 +240,7 @@ class DissertationReportApp:
     def build_ui(self):
         self.root.configure(bg=APP_THEME["app_background"])
         configure_ttk_style(self.root, self.config["theme"])
+        self.maximize_main_window()
         self.logo_image = None
         self.build_topbar()
         self.build_statusbar()
@@ -714,6 +742,17 @@ class DissertationReportApp:
         suffix = " | " + "; ".join(filters) if filters else ""
         self.filter_summary_var.set(f"Найдено: {found} из {total}{suffix}")
 
+    def get_table_column_widths(self, columns):
+        default_width = int(self.config.get("default_columns_width", 140))
+        widths = {}
+        for column in columns:
+            if column in TABLE_COLUMN_WIDTHS:
+                widths[column] = TABLE_COLUMN_WIDTHS[column]
+            else:
+                header_width = max(default_width, len(str(column)) * 9 + 24)
+                widths[column] = min(header_width, 280)
+        return widths
+
     def display_data(self):
         if not hasattr(self, 'tree') or self.tree is None: return
         for i in self.tree.get_children(): self.tree.delete(i)
@@ -724,13 +763,10 @@ class DissertationReportApp:
             return
         dc = [c for c in df.columns if c != '_original_index'];
         self.tree["columns"] = dc
-        dw = self.config.get("default_columns_width", 120)
-        cw = {"ФИО": 180, "Название диссертации": 250, "Диссертационный совет": 200, "Примечания": 200,
-              "Информация о лишении степени": 220}
+        cw = self.get_table_column_widths(dc)
         for c in dc: self.tree.heading(c, text=c, command=partial(self.set_sort, c)); self.tree.column(c,
-                                                                                                       width=cw.get(c,
-                                                                                                                    dw),
-                                                                                                       minwidth=80,
+                                                                                                       width=cw[c],
+                                                                                                       minwidth=min(110, cw[c]),
                                                                                                        stretch=False,
                                                                                                        anchor="w")
         for idx, row in df.iterrows():
@@ -855,6 +891,10 @@ class DissertationReportApp:
     def build_year_statistics(self, df):
         years = pd.to_numeric(df["Год защиты"], errors="coerce").dropna().astype(int)
         counts = years.value_counts().sort_index()
+        return self.summarize_year_counts(counts)
+
+    def summarize_year_counts(self, counts):
+        counts = counts.sort_index()
         if counts.empty:
             return {
                 "counts": counts,
@@ -872,6 +912,18 @@ class DissertationReportApp:
             "peak_year": peak_year,
             "peak_count": peak_count,
         }
+
+    def filter_year_statistics_by_min_count(self, stats, min_count):
+        try:
+            min_count = max(1, int(min_count))
+        except (TypeError, ValueError):
+            min_count = 1
+        counts = stats["counts"][stats["counts"] >= min_count]
+        return self.summarize_year_counts(counts)
+
+    def calculate_statistics_chart_size(self, bar_count):
+        width = max(7.4, min(13.5, 5.8 + int(bar_count) * 0.52))
+        return (width, 4.6)
 
     def format_work_count(self, count):
         count = int(count)
@@ -919,7 +971,7 @@ class DissertationReportApp:
         counts = stats["counts"]
         years = [str(int(year)) for year in counts.index]
         values = [int(value) for value in counts.values]
-        fig, ax = plt.subplots(figsize=(8.8, 4.8), dpi=100)
+        fig, ax = plt.subplots(figsize=self.calculate_statistics_chart_size(len(values)), dpi=100)
         fig.patch.set_facecolor(APP_THEME["surface"])
         ax.set_facecolor(APP_THEME["surface"])
 
@@ -934,7 +986,7 @@ class DissertationReportApp:
         ax.set_xlabel("Год")
         ax.set_ylabel("Количество работ")
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.set_ylim(0, max(values) + 1)
+        ax.set_ylim(0, max(values) + max(1, round(max(values) * 0.2)))
         ax.grid(axis="y", color=APP_THEME["line"], linestyle="--", linewidth=0.8, alpha=0.75)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
@@ -964,7 +1016,7 @@ class DissertationReportApp:
             arrowprops={"arrowstyle": "->", "color": APP_THEME["text"]},
         )
         annotation.set_visible(False)
-        fig.tight_layout()
+        fig.subplots_adjust(left=0.08, right=0.985, top=0.86, bottom=0.16)
 
         canvas = FigureCanvasTkAgg(fig, master=parent)
 
@@ -992,6 +1044,15 @@ class DissertationReportApp:
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         return canvas
 
+    def fill_statistics_distribution_table(self, table, stats):
+        for item in table.get_children():
+            table.delete(item)
+        if stats["total"] <= 0:
+            return
+        for year, count in stats["counts"].items():
+            share = int(round((int(count) / stats["total"]) * 100))
+            table.insert("", "end", values=(int(year), int(count), f"{share}%"))
+
     def show_statistics(self):
         if not MATPLOTLIB_AVAILABLE: return messagebox.showerror("Ошибка", "Требуется matplotlib")
         if self.data_model.data.empty: return messagebox.showwarning("Нет данных")
@@ -1002,12 +1063,12 @@ class DissertationReportApp:
 
         sw = tk.Toplevel(self.root)
         sw.title("Статистика")
-        sw.geometry("1060x720")
-        sw.minsize(960, 640)
+        sw.geometry("1180x760")
+        sw.minsize(1080, 680)
         sw.configure(bg=APP_THEME["app_background"])
         configure_ttk_style(sw, self.config["theme"])
 
-        header = tk.Frame(sw, bg=APP_THEME["topbar"], height=72)
+        header = tk.Frame(sw, bg=APP_THEME["topbar"], height=90)
         header.pack(fill="x")
         header.pack_propagate(False)
         tk.Label(
@@ -1025,6 +1086,8 @@ class DissertationReportApp:
             fg=APP_THEME["topbar_muted"],
             font=self.ui_font("small"),
             anchor="w",
+            wraplength=980,
+            justify="left",
         ).pack(fill="x", padx=SPACING["lg"], pady=(2, SPACING["md"]))
 
         cards = tk.Frame(sw, bg=APP_THEME["app_background"])
@@ -1043,6 +1106,46 @@ class DissertationReportApp:
             f"{stats['peak_count']} {self.format_work_count(stats['peak_count'])}",
         )
 
+        filter_frame = tk.Frame(
+            sw,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        filter_frame.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+        tk.Label(
+            filter_frame,
+            text="Минимум работ за год",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("size", "bold"),
+            anchor="w",
+        ).pack(side="left", padx=(SPACING["md"], SPACING["sm"]), pady=SPACING["sm"])
+
+        max_count = max(1, int(stats["counts"].max()))
+        min_count_var = tk.IntVar(value=1)
+        filter_status_var = tk.StringVar()
+        min_count_spinbox = tk.Spinbox(
+            filter_frame,
+            from_=1,
+            to=max_count,
+            width=5,
+            textvariable=min_count_var,
+            font=self.ui_font("size"),
+            command=lambda: refresh_statistics_view(),
+            relief="solid",
+            bd=1,
+        )
+        min_count_spinbox.pack(side="left", padx=(0, SPACING["md"]), pady=SPACING["sm"])
+        tk.Label(
+            filter_frame,
+            textvariable=filter_status_var,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small"),
+            anchor="w",
+        ).pack(side="left", fill="x", expand=True, padx=(0, SPACING["md"]), pady=SPACING["sm"])
+
         content = tk.Frame(sw, bg=APP_THEME["app_background"])
         content.pack(fill="both", expand=True, padx=SPACING["lg"], pady=(0, SPACING["lg"]))
         content.columnconfigure(0, weight=4)
@@ -1056,7 +1159,6 @@ class DissertationReportApp:
             highlightthickness=1,
         )
         chart_frame.grid(row=0, column=0, sticky="nsew", padx=(0, SPACING["md"]))
-        self.create_year_statistics_chart(chart_frame, stats)
 
         side_frame = tk.Frame(
             content,
@@ -1081,9 +1183,43 @@ class DissertationReportApp:
         table.column("count", width=70, anchor="center")
         table.column("share", width=70, anchor="center")
         table.pack(fill="both", expand=True, padx=SPACING["md"], pady=(0, SPACING["md"]))
-        for year, count in stats["counts"].items():
-            share = int(round((int(count) / stats["total"]) * 100))
-            table.insert("", "end", values=(int(year), int(count), f"{share}%"))
+
+        def refresh_statistics_view(*_):
+            try:
+                min_count = max(1, min(max_count, int(min_count_var.get())))
+            except (tk.TclError, ValueError):
+                min_count = 1
+            if min_count_var.get() != min_count:
+                min_count_var.set(min_count)
+
+            filtered_stats = self.filter_year_statistics_by_min_count(stats, min_count)
+            for child in chart_frame.winfo_children():
+                child.destroy()
+
+            if filtered_stats["counts"].empty:
+                tk.Label(
+                    chart_frame,
+                    text="Нет годов с выбранным количеством работ",
+                    bg=APP_THEME["surface"],
+                    fg=APP_THEME["muted_text"],
+                    font=self.ui_font("size", "bold"),
+                ).pack(fill="both", expand=True)
+                for item in table.get_children():
+                    table.delete(item)
+                filter_status_var.set("Годы не найдены. Уменьшите минимум работ.")
+                return
+
+            self.create_year_statistics_chart(chart_frame, filtered_stats)
+            self.fill_statistics_distribution_table(table, filtered_stats)
+            shown_years = len(filtered_stats["counts"])
+            filter_status_var.set(
+                f"Показано годов: {shown_years}. "
+                f"Работ в выборке: {filtered_stats['total']}."
+            )
+
+        min_count_spinbox.bind("<Return>", refresh_statistics_view)
+        min_count_spinbox.bind("<FocusOut>", refresh_statistics_view)
+        refresh_statistics_view()
 
         tk.Button(
             sw,
@@ -1111,6 +1247,8 @@ class DissertationReportApp:
         self.root.after(100, self.show_login)
 
     def on_closing(self):
+        self.is_closing = True
+        self.cancel_scheduled_callbacks()
         self.save_persisted_data();
         self.log_action("Завершение");
         if hasattr(self, "storage"):
@@ -1118,9 +1256,36 @@ class DissertationReportApp:
         logging.shutdown()
         self.root.destroy()
 
+    def schedule_process_queue(self):
+        if self.is_closing:
+            return
+        try:
+            if not self.root.winfo_exists():
+                return
+            self.queue_after_id = self.root.after(100, self.process_queue)
+        except tk.TclError:
+            self.queue_after_id = None
+
+    def cancel_scheduled_callbacks(self):
+        if not self.queue_after_id:
+            return
+        try:
+            self.root.after_cancel(self.queue_after_id)
+        except tk.TclError:
+            pass
+        finally:
+            self.queue_after_id = None
+
+    def destroy_root_after_cancel(self):
+        self.is_closing = True
+        self.cancel_scheduled_callbacks()
+        self.root.destroy()
+
     def process_queue(self):
+        if self.is_closing:
+            return
         try:
             while True: self.task_queue.get_nowait()()
         except queue.Empty:
             pass
-        self.root.after(100, self.process_queue)
+        self.schedule_process_queue()

@@ -88,3 +88,47 @@ def test_topbar_uses_app_icon_instead_of_text_badge():
     assert "APP_ICON_PNG" in app_source
     assert "PhotoImage(file=" in app_source
     assert 'text="АС",' not in app_source
+
+
+def test_process_queue_after_callback_is_cancelled_on_close():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "self.is_closing" in app_source
+    assert "self.queue_after_id" in app_source
+    assert "after_cancel(self.queue_after_id)" in app_source
+    assert "self.schedule_process_queue()" in app_source
+
+
+def test_main_window_is_maximized_after_successful_login():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "maximize_main_window" in app_source
+    assert "self.maximize_main_window()" in app_source
+    assert 'state("zoomed")' in app_source
+
+
+def test_table_column_widths_are_readable_for_domain_columns():
+    from asud.ui.app import DissertationReportApp
+
+    app = DissertationReportApp.__new__(DissertationReportApp)
+    app.config = {"default_columns_width": 120}
+
+    widths = app.get_table_column_widths(
+        [
+            "Год защиты",
+            "ФИО",
+            "Название диссертации",
+            "Диссертационный совет",
+            "Дата защиты диссертации",
+            "Специальность",
+            "Искомая степень",
+            "Информация о лишении степени",
+            "Примечания",
+        ]
+    )
+
+    assert widths["Год защиты"] >= 96
+    assert widths["ФИО"] >= 220
+    assert widths["Название диссертации"] >= 340
+    assert widths["Информация о лишении степени"] >= 260
+    assert widths["Примечания"] >= 240

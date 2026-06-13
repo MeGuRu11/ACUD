@@ -9,7 +9,22 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
-from openpyxl.styles import Border, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+
+EXCEL_COLUMN_WIDTHS = {
+    "Год защиты": 12,
+    "ФИО": 26,
+    "Название диссертации": 46,
+    "Диссертационный совет": 24,
+    "Дата защиты диссертации": 20,
+    "Специальность": 26,
+    "Искомая степень": 24,
+    "Информация о лишении степени": 32,
+    "Примечания": 28,
+    "1 Научный руководитель (консультант)": 34,
+    "2 Научный руководитель (консультант)": 34,
+}
 
 
 class ReportGenerator:
@@ -46,18 +61,41 @@ class ReportGenerator:
             for column, weight in zip(columns, selected_weights)
         }
 
+    @staticmethod
+    def calculate_excel_column_widths(df):
+        widths = {}
+        for column in df.columns:
+            content_width = max(
+                (len(str(value)) for value in [column, *df[column].dropna().tolist()]),
+                default=len(str(column)),
+            )
+            min_width = EXCEL_COLUMN_WIDTHS.get(column, min(max(len(str(column)) + 4, 14), 30))
+            widths[column] = min(max(content_width + 2, min_width), 70)
+        return widths
+
     def export_to_excel(self, df, filepath, selected_columns=None):
         df = self._select_columns(df, selected_columns)
         with pd.ExcelWriter(filepath, engine='openpyxl') as w:
             df.to_excel(w, sheet_name='Отчёт', index=False)
             ws = w.sheets['Отчёт']
             b = Border(left=Side('thin'), right=Side('thin'), top=Side('thin'), bottom=Side('thin'))
+            header_fill = PatternFill("solid", fgColor="F3F6FA")
+            header_font = Font(bold=True, color="18212F")
+            header_alignment = Alignment(vertical="center", horizontal="center", wrap_text=True)
+            body_alignment = Alignment(vertical="top", wrap_text=True)
             for r in ws.iter_rows():
                 for c in r:
-                    if c.value is not None: c.border = b
-            for col in ws.columns:
-                ml = max((len(str(c.value)) for c in col if c.value), default=0)
-                ws.column_dimensions[col[0].column_letter].width = min(ml + 2, 50)
+                    if c.value is not None:
+                        c.border = b
+                        c.alignment = header_alignment if c.row == 1 else body_alignment
+                        if c.row == 1:
+                            c.fill = header_fill
+                            c.font = header_font
+            ws.freeze_panes = "A2"
+            column_widths = self.calculate_excel_column_widths(df)
+            for index, column in enumerate(df.columns, start=1):
+                letter = ws.cell(row=1, column=index).column_letter
+                ws.column_dimensions[letter].width = column_widths[column]
 
     def _remove_cell_borders(self, cell):
         try:

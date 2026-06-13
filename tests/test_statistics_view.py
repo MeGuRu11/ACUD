@@ -23,6 +23,36 @@ def test_build_year_statistics_counts_sorted_years_and_summary():
     assert stats["peak_count"] == 2
 
 
+def test_filter_year_statistics_by_min_count_rebuilds_summary():
+    app = DissertationReportApp.__new__(DissertationReportApp)
+    stats = app.build_year_statistics(
+        pd.DataFrame(
+            {
+                "Год защиты": [2020, 2021, 2021, 2022, 2023, 2023, 2023],
+                "ФИО": list("abcdefg"),
+            }
+        )
+    )
+
+    filtered = app.filter_year_statistics_by_min_count(stats, 2)
+
+    assert filtered["counts"].to_dict() == {2021: 2, 2023: 3}
+    assert filtered["total"] == 5
+    assert filtered["period"] == "2021-2023"
+    assert filtered["peak_year"] == 2023
+    assert filtered["peak_count"] == 3
+
+
+def test_statistics_chart_size_changes_with_bar_count():
+    app = DissertationReportApp.__new__(DissertationReportApp)
+
+    compact = app.calculate_statistics_chart_size(2)
+    wide = app.calculate_statistics_chart_size(9)
+
+    assert compact[0] < wide[0]
+    assert compact[1] == wide[1]
+
+
 def test_statistics_window_source_has_redesigned_informative_chart():
     source = Path("asud/ui/app.py").read_text(encoding="utf-8")
 
@@ -38,3 +68,5 @@ def test_statistics_window_source_has_redesigned_informative_chart():
     assert "работ" in source
     assert "Пиковый год" in source
     assert "Всего работ" in source
+    assert "Минимум работ за год" in source
+    assert "refresh_statistics_view" in source
