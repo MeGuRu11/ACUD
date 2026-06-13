@@ -146,3 +146,17 @@ def test_table_and_detail_view_use_clean_display_values():
     assert "save_record_detail_changes" in app_source
     assert 'self.tree.bind("<Double-1>", self.open_selected_record_view)' in app_source
     assert 'self.tree.bind("<Return>", self.open_selected_record_view)' in app_source
+
+
+def test_record_detail_view_uses_sectioned_polished_layout():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "get_record_detail_sections" in app_source
+    assert "create_record_detail_section" in app_source
+    assert "create_record_detail_field" in app_source
+    assert "create_record_meta_badge" in app_source
+    assert "Основные сведения" in app_source
+    assert "Научное сопровождение" in app_source
+    assert "Служебная информация" in app_source
+    assert "detail_footer" in app_source
+    assert "detail_canvas" in app_source

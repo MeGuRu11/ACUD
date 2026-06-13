@@ -835,6 +835,176 @@ class DissertationReportApp:
             return messagebox.showwarning("Запись", "Выберите строку в списке записей.")
         self.show_record_detail_view(int(sel[0]))
 
+    def get_record_detail_sections(self, columns):
+        primary_fields = [
+            "ФИО",
+            "Название диссертации",
+            "Год защиты",
+            "Дата защиты диссертации",
+            "Искомая степень",
+            "Специальность",
+            "Диссертационный совет",
+        ]
+        supervisor_fields = [
+            "1 Научный руководитель (консультант)",
+            "2 Научный руководитель (консультант)",
+        ]
+        service_fields = [
+            "Примечания",
+            "Информация о лишении степени",
+        ]
+        sections = []
+        assigned = set()
+
+        for title, wanted_fields in (
+            ("Основные сведения", primary_fields),
+            ("Научное сопровождение", supervisor_fields),
+            ("Служебная информация", service_fields),
+        ):
+            fields = [field for field in wanted_fields if field in columns]
+            if fields:
+                sections.append((title, fields))
+                assigned.update(fields)
+
+        extra_fields = [field for field in columns if field not in assigned]
+        if extra_fields:
+            sections.append(("Дополнительные сведения", extra_fields))
+
+        return sections
+
+    def format_record_detail_value(self, column, value):
+        display_value = self.data_model.format_display_value(value)
+        if column == "Год защиты" and re.fullmatch(r"\d+\.0", display_value):
+            return display_value[:-2]
+        return display_value
+
+    def get_record_detail_meta_value(self, record, column):
+        value = self.format_record_detail_value(column, record.get(column, ""))
+        return value if value else "Не указано"
+
+    def is_long_record_detail_field(self, column):
+        column_lower = column.lower()
+        return any(marker in column_lower for marker in ("название", "примеч", "информация"))
+
+    def create_record_meta_badge(self, parent, title, value):
+        badge = tk.Frame(
+            parent,
+            bg="#173640",
+            highlightbackground=APP_THEME["primary_alt"],
+            highlightthickness=1,
+        )
+        badge.pack(side="left", padx=(0, SPACING["sm"]))
+        tk.Label(
+            badge,
+            text=title,
+            bg="#173640",
+            fg=APP_THEME["topbar_muted"],
+            font=self.ui_font("caption", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["md"], pady=(SPACING["xs"], 0))
+        tk.Label(
+            badge,
+            text=value,
+            bg="#173640",
+            fg=APP_THEME["topbar_text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+            wraplength=170,
+        ).pack(fill="x", padx=SPACING["md"], pady=(0, SPACING["xs"]))
+        return badge
+
+    def create_record_detail_section(self, parent, title):
+        section = tk.Frame(
+            parent,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        section.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+        tk.Label(
+            section,
+            text=title,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=self.ui_font("heading", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], SPACING["sm"]))
+
+        content = tk.Frame(section, bg=APP_THEME["surface"])
+        content.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+        content.columnconfigure(0, weight=1, uniform="record_detail_fields")
+        content.columnconfigure(1, weight=1, uniform="record_detail_fields")
+        return content
+
+    def create_record_detail_field(self, parent, column, value, can_edit, row, column_index=0, columnspan=1):
+        padx = (0, SPACING["md"]) if column_index == 0 and columnspan == 1 else (0, 0)
+        field = tk.Frame(parent, bg=APP_THEME["surface"])
+        field.grid(
+            row=row,
+            column=column_index,
+            columnspan=columnspan,
+            sticky="ew",
+            padx=padx,
+            pady=(0, SPACING["md"]),
+        )
+        field.columnconfigure(0, weight=1)
+        tk.Label(
+            field,
+            text=column,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small", "bold"),
+            anchor="w",
+        ).grid(row=0, column=0, sticky="ew", pady=(0, SPACING["xs"]))
+
+        if self.is_long_record_detail_field(column):
+            height = 4 if "название" in column.lower() else 3
+            widget = tk.Text(
+                field,
+                height=height,
+                wrap="word",
+                font=self.ui_font("size"),
+                bg=APP_THEME["surface_soft"],
+                fg=APP_THEME["text"],
+                insertbackground=APP_THEME["text"],
+                relief="flat",
+                bd=0,
+                highlightbackground=APP_THEME["line"],
+                highlightcolor=APP_THEME["primary_alt"],
+                highlightthickness=1,
+                padx=SPACING["sm"],
+                pady=SPACING["sm"],
+            )
+            widget.insert("1.0", value)
+            widget.grid(row=1, column=0, sticky="ew")
+            if not can_edit:
+                widget.config(state="disabled")
+            return widget
+
+        widget = tk.Entry(
+            field,
+            font=self.ui_font("size"),
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["text"],
+            insertbackground=APP_THEME["text"],
+            relief="flat",
+            bd=0,
+            highlightbackground=APP_THEME["line"],
+            highlightcolor=APP_THEME["primary_alt"],
+            highlightthickness=1,
+            readonlybackground=APP_THEME["surface_soft"],
+        )
+        widget.insert(0, value)
+        widget.grid(row=1, column=0, sticky="ew", ipady=SPACING["xs"])
+        if not can_edit:
+            widget.config(state="readonly")
+        return widget
+
+    def extract_record_detail_field_value(self, widget):
+        if isinstance(widget, tk.Text):
+            return widget.get("1.0", "end-1c").strip()
+        return widget.get().strip()
+
     def show_record_detail_view(self, record_index):
         record = self.data_model.get_row_by_original_index(record_index)
         if record is None:
@@ -844,95 +1014,136 @@ class DissertationReportApp:
         title_value = record.get("ФИО") or "Карточка записи"
         detail = tk.Toplevel(self.root)
         detail.title(f"Карточка записи | {title_value}")
-        detail.geometry("980x720")
-        detail.minsize(860, 620)
+        detail_width = min(1160, max(980, detail.winfo_screenwidth() - 160))
+        detail_height = min(800, max(680, detail.winfo_screenheight() - 140))
+        detail_x = max(0, (detail.winfo_screenwidth() - detail_width) // 2)
+        detail_y = max(0, (detail.winfo_screenheight() - detail_height) // 2)
+        detail.geometry(f"{detail_width}x{detail_height}+{detail_x}+{detail_y}")
+        detail.minsize(960, 660)
         detail.configure(bg=APP_THEME["app_background"])
         configure_ttk_style(detail, self.config["theme"])
+        if self.app_icon_image is not None:
+            detail.iconphoto(False, self.app_icon_image)
 
-        header = tk.Frame(detail, bg=APP_THEME["topbar"], height=86)
+        header = tk.Frame(detail, bg=APP_THEME["topbar"], height=132)
         header.pack(fill="x")
         header.pack_propagate(False)
+        header_content = tk.Frame(header, bg=APP_THEME["topbar"])
+        header_content.pack(fill="both", expand=True, padx=SPACING["lg"], pady=SPACING["md"])
+        header_content.columnconfigure(0, weight=1)
+        header_content.columnconfigure(1, weight=0)
         tk.Label(
-            header,
+            header_content,
             text="Карточка записи",
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_text"],
             font=self.ui_font("title", "bold"),
             anchor="w",
-        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], 0))
+        ).grid(row=0, column=0, sticky="ew")
         tk.Label(
-            header,
+            header_content,
             text=title_value,
             bg=APP_THEME["topbar"],
             fg=APP_THEME["topbar_muted"],
+            font=self.ui_font("size", "bold"),
+            anchor="w",
+        ).grid(row=1, column=0, sticky="ew", pady=(SPACING["xs"], 0))
+
+        mode_text = "Редактирование доступно" if can_edit else "Режим просмотра"
+        tk.Label(
+            header_content,
+            text=mode_text,
+            bg=APP_THEME["primary_alt"] if can_edit else "#173640",
+            fg=APP_THEME["topbar_text"],
+            font=self.ui_font("small", "bold"),
+            padx=SPACING["md"],
+            pady=SPACING["xs"],
+        ).grid(row=2, column=0, sticky="w", pady=(SPACING["sm"], 0))
+
+        meta_panel = tk.Frame(header_content, bg=APP_THEME["topbar"])
+        meta_panel.grid(row=0, column=1, rowspan=3, sticky="ne", padx=(SPACING["lg"], 0))
+        self.create_record_meta_badge(meta_panel, "Год защиты", self.get_record_detail_meta_value(record, "Год защиты"))
+        self.create_record_meta_badge(
+            meta_panel,
+            "Степень",
+            self.get_record_detail_meta_value(record, "Искомая степень"),
+        )
+        self.create_record_meta_badge(
+            meta_panel,
+            "Совет",
+            self.get_record_detail_meta_value(record, "Диссертационный совет"),
+        )
+
+        detail_footer = tk.Frame(detail, bg=APP_THEME["surface"], height=78)
+        detail_footer.pack(side="bottom", fill="x")
+        detail_footer.pack_propagate(False)
+        footer_hint = "Внесите изменения и сохраните карточку." if can_edit else "Просмотр записи без правки."
+        tk.Label(
+            detail_footer,
+            text=footer_hint,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
             font=self.ui_font("small"),
             anchor="w",
-        ).pack(fill="x", padx=SPACING["lg"], pady=(2, SPACING["md"]))
+        ).pack(side="left", fill="x", expand=True, padx=SPACING["lg"], pady=SPACING["md"])
 
-        canvas = tk.Canvas(detail, bg=APP_THEME["app_background"], highlightthickness=0)
-        scrollbar = ttk.Scrollbar(detail, orient="vertical", command=canvas.yview)
-        body = tk.Frame(canvas, bg=APP_THEME["surface"])
-        body_id = canvas.create_window((0, 0), window=body, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill="both", expand=True, padx=(SPACING["lg"], 0), pady=SPACING["lg"])
+        footer_actions = tk.Frame(detail_footer, bg=APP_THEME["surface"])
+        footer_actions.pack(side="right", padx=SPACING["lg"], pady=SPACING["md"])
+
+        content_shell = tk.Frame(detail, bg=APP_THEME["app_background"])
+        content_shell.pack(side="top", fill="both", expand=True)
+        detail_canvas = tk.Canvas(content_shell, bg=APP_THEME["app_background"], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(content_shell, orient="vertical", command=detail_canvas.yview)
+        body = tk.Frame(detail_canvas, bg=APP_THEME["app_background"])
+        body_id = detail_canvas.create_window((0, 0), window=body, anchor="nw")
+        detail_canvas.configure(yscrollcommand=scrollbar.set)
+        detail_canvas.pack(side="left", fill="both", expand=True, padx=(SPACING["lg"], 0), pady=SPACING["lg"])
         scrollbar.pack(side="right", fill="y", padx=(0, SPACING["lg"]), pady=SPACING["lg"])
-        body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(body_id, width=e.width))
+        body.bind("<Configure>", lambda e: detail_canvas.configure(scrollregion=detail_canvas.bbox("all")))
+        detail_canvas.bind("<Configure>", lambda e: detail_canvas.itemconfigure(body_id, width=e.width))
 
         fields = {}
         columns = [column for column in self.data_model.get_columns() if column != "_original_index"]
-        for row_index, column in enumerate(columns):
-            row = tk.Frame(body, bg=APP_THEME["surface"])
-            row.grid(row=row_index, column=0, sticky="ew", padx=SPACING["lg"], pady=(SPACING["sm"], 0))
-            row.columnconfigure(1, weight=1)
-            tk.Label(
-                row,
-                text=column,
-                bg=APP_THEME["surface"],
-                fg=APP_THEME["muted_text"],
-                font=self.ui_font("small", "bold"),
-                anchor="w",
-                width=32,
-            ).grid(row=0, column=0, sticky="nw", padx=(0, SPACING["md"]), pady=4)
+        for section_title, section_columns in self.get_record_detail_sections(columns):
+            section = self.create_record_detail_section(body, section_title)
+            grid_row = 0
+            grid_column = 0
+            for column in section_columns:
+                value = self.format_record_detail_value(column, record.get(column, ""))
+                if self.is_long_record_detail_field(column):
+                    if grid_column != 0:
+                        grid_row += 1
+                        grid_column = 0
+                    widget = self.create_record_detail_field(
+                        section,
+                        column,
+                        value,
+                        can_edit,
+                        grid_row,
+                        column_index=0,
+                        columnspan=2,
+                    )
+                    grid_row += 1
+                    grid_column = 0
+                else:
+                    widget = self.create_record_detail_field(
+                        section,
+                        column,
+                        value,
+                        can_edit,
+                        grid_row,
+                        column_index=grid_column,
+                    )
+                    if grid_column == 0:
+                        grid_column = 1
+                    else:
+                        grid_row += 1
+                        grid_column = 0
+                fields[column] = widget
 
-            value = self.data_model.format_display_value(record.get(column, ""))
-            is_long = any(marker in column.lower() for marker in ("название", "примеч", "информация"))
-            if is_long:
-                widget = tk.Text(
-                    row,
-                    height=3,
-                    wrap="word",
-                    font=self.ui_font("size"),
-                    bg=APP_THEME["surface_soft"],
-                    fg=APP_THEME["text"],
-                    relief="solid",
-                    bd=1,
-                )
-                widget.insert("1.0", value)
-                widget.grid(row=0, column=1, sticky="ew")
-                if not can_edit:
-                    widget.config(state="disabled")
-            else:
-                widget = tk.Entry(
-                    row,
-                    font=self.ui_font("size"),
-                    bg=APP_THEME["surface_soft"],
-                    fg=APP_THEME["text"],
-                    relief="solid",
-                    bd=1,
-                )
-                widget.insert(0, value)
-                widget.grid(row=0, column=1, sticky="ew")
-                if not can_edit:
-                    widget.config(state="readonly")
-            fields[column] = widget
-
-        actions = tk.Frame(body, bg=APP_THEME["surface"])
-        actions.grid(row=len(columns), column=0, sticky="ew", padx=SPACING["lg"], pady=SPACING["lg"])
-        actions.columnconfigure(0, weight=1)
         if can_edit:
             tk.Button(
-                actions,
+                footer_actions,
                 text="Сохранить изменения",
                 command=lambda: self.save_record_detail_changes(record_index, fields, detail),
                 bg=APP_THEME["primary_alt"],
@@ -942,9 +1153,9 @@ class DissertationReportApp:
                 relief="flat",
                 padx=SPACING["lg"],
                 pady=SPACING["sm"],
-            ).pack(side="left")
+            ).pack(side="left", padx=(0, SPACING["sm"]))
         tk.Button(
-            actions,
+            footer_actions,
             text="Закрыть",
             command=detail.destroy,
             bg=APP_THEME["surface_soft"],
@@ -955,16 +1166,14 @@ class DissertationReportApp:
             padx=SPACING["lg"],
             pady=SPACING["sm"],
         ).pack(side="right")
+        detail.focus_set()
 
     def save_record_detail_changes(self, record_index, fields, detail_window):
         if self.current_role not in ("admin", "editor"):
             return messagebox.showerror("Доступ запрещён", "Недостаточно прав для редактирования.")
         new_values = {}
         for column, widget in fields.items():
-            if isinstance(widget, tk.Text):
-                new_values[column] = widget.get("1.0", "end-1c").strip()
-            else:
-                new_values[column] = widget.get().strip()
+            new_values[column] = self.extract_record_detail_field_value(widget)
         self.data_model.update_record(record_index, new_values, allow_empty_update=True)
         self.display_data()
         self.save_persisted_data()
