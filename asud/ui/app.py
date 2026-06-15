@@ -62,6 +62,10 @@ TABLE_COLUMN_WIDTHS = {
 }
 
 
+TABLE_SELECT_COLUMN = "_record_selected"
+TABLE_SELECT_MARK = "✓"
+
+
 class DissertationReportApp:
     def __init__(self, root):
         self.root = root;
@@ -86,6 +90,8 @@ class DissertationReportApp:
         self.current_filepath = None
         self.status_var = tk.StringVar();
         self.status_var.set("Готово. Данные будут сохранены в локальную базу SQLite.")
+        self.selection_summary_var = tk.StringVar(value="Выбрано: 0")
+        self.selected_record_indexes = set()
         self.task_queue = queue.Queue();
         self.queue_after_id = None
         self.login_after_id = None
@@ -569,14 +575,48 @@ class DissertationReportApp:
             font=self.ui_font("size", "bold"),
             anchor="w",
         ).grid(row=0, column=0, sticky="w", padx=SPACING["md"], pady=SPACING["sm"])
+        selection_tools = tk.Frame(table_header, bg=APP_THEME["surface_soft"])
+        selection_tools.grid(row=0, column=1, sticky="e", padx=SPACING["md"], pady=SPACING["xs"])
         tk.Label(
-            table_header,
+            selection_tools,
+            textvariable=self.selection_summary_var,
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["muted_text"],
+            font=self.ui_font("small", "bold"),
+            anchor="e",
+        ).pack(side="left", padx=(0, SPACING["sm"]))
+        tk.Button(
+            selection_tools,
+            text="Выделить все",
+            command=self.select_visible_records,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            activebackground=APP_THEME["line"],
+            font=self.ui_font("small", "bold"),
+            relief="flat",
+            padx=SPACING["sm"],
+            pady=SPACING["xs"],
+        ).pack(side="left", padx=(0, SPACING["xs"]))
+        tk.Button(
+            selection_tools,
+            text="Снять",
+            command=self.clear_record_selection,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            activebackground=APP_THEME["line"],
+            font=self.ui_font("small", "bold"),
+            relief="flat",
+            padx=SPACING["sm"],
+            pady=SPACING["xs"],
+        ).pack(side="left", padx=(0, SPACING["sm"]))
+        tk.Label(
+            selection_tools,
             text="Данные сохранены в Базе Данных",
             bg=APP_THEME["surface_soft"],
             fg=APP_THEME["muted_text"],
             font=self.ui_font("small"),
             anchor="e",
-        ).grid(row=0, column=1, sticky="e", padx=SPACING["md"], pady=SPACING["sm"])
+        ).pack(side="left")
 
         tc = tk.Frame(self.table_frame, bg=APP_THEME["table_background"])
         tc.grid(row=1, column=0, sticky="nsew")
@@ -639,12 +679,98 @@ class DissertationReportApp:
                 setattr(self, a, None)
         self.tree = None
 
+    def update_selection_summary(self):
+        if hasattr(self, "selection_summary_var"):
+            self.selection_summary_var.set(f"Выбрано: {len(self.selected_record_indexes)}")
+
+    def get_selected_record_indexes(self):
+        selected = set(getattr(self, "selected_record_indexes", set()))
+        if hasattr(self, "tree") and self.tree is not None:
+            for item in self.tree.selection():
+                try:
+                    selected.add(int(item))
+                except (TypeError, ValueError):
+                    continue
+        return sorted(selected)
+
+    def sync_tree_selection_from_checked(self):
+        if not hasattr(self, "tree") or self.tree is None:
+            return
+        children = self.tree.get_children()
+        if children:
+            self.tree.selection_remove(children)
+        visible_selected = [
+            str(index)
+            for index in self.selected_record_indexes
+            if self.tree.exists(str(index))
+        ]
+        if visible_selected:
+            self.tree.selection_add(visible_selected)
+
+    def toggle_record_selection(self, item_id):
+        try:
+            index = int(item_id)
+        except (TypeError, ValueError):
+            return
+        if index in self.selected_record_indexes:
+            self.selected_record_indexes.remove(index)
+            mark = ""
+            self.tree.selection_remove(item_id)
+        else:
+            self.selected_record_indexes.add(index)
+            mark = TABLE_SELECT_MARK
+            self.tree.selection_add(item_id)
+        if TABLE_SELECT_COLUMN in self.tree["columns"]:
+            self.tree.set(item_id, TABLE_SELECT_COLUMN, mark)
+        self.update_selection_summary()
+
+    def select_visible_records(self):
+        if not hasattr(self, "tree") or self.tree is None:
+            return
+        for item_id in self.tree.get_children():
+            try:
+                index = int(item_id)
+            except (TypeError, ValueError):
+                continue
+            self.selected_record_indexes.add(index)
+            if TABLE_SELECT_COLUMN in self.tree["columns"]:
+                self.tree.set(item_id, TABLE_SELECT_COLUMN, TABLE_SELECT_MARK)
+        self.sync_tree_selection_from_checked()
+        self.update_selection_summary()
+
+    def clear_record_selection(self):
+        if hasattr(self, "selected_record_indexes"):
+            self.selected_record_indexes.clear()
+        if hasattr(self, "tree") and self.tree is not None:
+            children = self.tree.get_children()
+            if children:
+                self.tree.selection_remove(children)
+            if TABLE_SELECT_COLUMN in self.tree["columns"]:
+                for item_id in children:
+                    self.tree.set(item_id, TABLE_SELECT_COLUMN, "")
+        self.update_selection_summary()
+
     def on_tree_click(self, event):
         r = self.tree.identify_region(event.x, event.y)
+        column_id = self.tree.identify_column(event.x)
+        columns = list(self.tree["columns"])
+        column_name = None
+        if column_id:
+            try:
+                column_name = columns[int(column_id.replace("#", "")) - 1]
+            except (IndexError, ValueError):
+                column_name = None
+        if r == "cell" and column_name == TABLE_SELECT_COLUMN:
+            item_id = self.tree.identify_row(event.y)
+            if item_id:
+                self.toggle_record_selection(item_id)
+            return "break"
         if r == "heading":
             c = self.tree.identify_column(event.x);
             ci = int(c.replace("#", "")) - 1;
             cn = self.tree["columns"][ci]
+            if cn == TABLE_SELECT_COLUMN:
+                return "break"
             if self.data_model.sort_column == cn:
                 self.data_model.sort_reverse = not self.data_model.sort_reverse
             else:
@@ -754,6 +880,7 @@ class DissertationReportApp:
     def display_empty_state(self, message):
         if not hasattr(self, 'tree') or self.tree is None:
             return
+        self.selected_record_indexes.clear()
         for item in self.tree.get_children():
             self.tree.delete(item)
         self.tree["columns"] = ("message",)
@@ -761,6 +888,7 @@ class DissertationReportApp:
         self.tree.column("message", width=600, minwidth=300, stretch=True, anchor="center")
         self.tree.insert("", "end", values=(message,))
         self.update_filter_summary()
+        self.update_selection_summary()
         self.tree.update_idletasks()
 
     def update_filter_summary(self):
@@ -798,17 +926,30 @@ class DissertationReportApp:
             self.display_empty_state(message)
             return
         dc = [c for c in df.columns if c != '_original_index'];
-        self.tree["columns"] = dc
+        rows = []
+        visible_indexes = set()
+        for idx, row in df.iterrows():
+            oi = int(row.get('_original_index', idx))
+            visible_indexes.add(oi)
+            rows.append((oi, row))
+        self.selected_record_indexes.intersection_update(visible_indexes)
+        table_columns = [TABLE_SELECT_COLUMN] + dc
+        self.tree["columns"] = table_columns
+        self.tree.heading(TABLE_SELECT_COLUMN, text="Выбор")
+        self.tree.column(TABLE_SELECT_COLUMN, width=78, minwidth=72, stretch=False, anchor="center")
         cw = self.get_table_column_widths(dc)
         for c in dc: self.tree.heading(c, text=c, command=partial(self.set_sort, c)); self.tree.column(c,
                                                                                                        width=cw[c],
                                                                                                        minwidth=min(110, cw[c]),
                                                                                                        stretch=False,
                                                                                                        anchor="w")
-        for idx, row in df.iterrows():
-            oi = row.get('_original_index', idx);
-            self.tree.insert("", "end", iid=str(oi), values=[self.data_model.format_display_value(row[c]) for c in dc])
+        for oi, row in rows:
+            selected = TABLE_SELECT_MARK if oi in self.selected_record_indexes else ""
+            values = [selected] + [self.data_model.format_display_value(row[c]) for c in dc]
+            self.tree.insert("", "end", iid=str(oi), values=values)
+        self.sync_tree_selection_from_checked()
         self.update_filter_summary()
+        self.update_selection_summary()
         self.tree.update_idletasks()
 
     def set_sort(self, col):
@@ -1191,13 +1332,7 @@ class DissertationReportApp:
     def delete_selected(self):
         if self.current_role not in ("admin", "editor"):
             return messagebox.showerror("Доступ запрещён")
-        sel = self.tree.selection()
-        if not sel:
-            return messagebox.showwarning("Удаление", "Выберите записи.")
-        try:
-            selected_indexes = sorted({int(item) for item in sel})
-        except ValueError:
-            return messagebox.showwarning("Удаление", "Выберите записи из списка.")
+        selected_indexes = self.get_selected_record_indexes()
         if not selected_indexes:
             return messagebox.showwarning("Удаление", "Выберите записи.")
         count = len(selected_indexes)
@@ -1205,6 +1340,7 @@ class DissertationReportApp:
         if messagebox.askyesno("Подтверждение", question):
             try:
                 deleted_count = self.data_model.delete_records(selected_indexes)
+                self.selected_record_indexes.clear()
                 self.display_data()
                 self.save_persisted_data()
                 self.log_action(f"Удалено записей: {deleted_count}; индексы: {selected_indexes}")

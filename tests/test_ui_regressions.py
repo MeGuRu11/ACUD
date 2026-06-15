@@ -215,5 +215,16 @@ def test_main_table_supports_bulk_selection_delete():
     app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
 
     assert 'ttk.Treeview(tc, show="headings", selectmode="extended")' in app_source
-    assert "selected_indexes = sorted({int(item) for item in sel})" in app_source
+    assert "selected_indexes = self.get_selected_record_indexes()" in app_source
     assert "self.data_model.delete_records(selected_indexes)" in app_source
+
+
+def test_main_table_has_visible_selection_controls():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert "TABLE_SELECT_COLUMN" in app_source
+    assert "self.selected_record_indexes" in app_source
+    assert "Выделить все" in app_source
+    assert "Снять" in app_source
+    assert "toggle_record_selection" in app_source
+    assert "get_selected_record_indexes" in app_source
