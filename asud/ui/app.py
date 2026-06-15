@@ -1343,6 +1343,11 @@ class DissertationReportApp:
         width = max(7.4, min(13.5, 5.8 + int(bar_count) * 0.52))
         return (width, 4.6)
 
+    @staticmethod
+    def clear_optional_spinbox(spinbox, variable):
+        spinbox.delete(0, tk.END)
+        variable.set("")
+
     def format_work_count(self, count):
         count = int(count)
         if count % 10 == 1 and count % 100 != 11:
@@ -1651,6 +1656,7 @@ class DissertationReportApp:
             bd=1,
         )
         max_count_spinbox.grid(row=1, column=7, sticky="ew", padx=(0, SPACING["sm"]), pady=(0, SPACING["sm"]))
+        self.clear_optional_spinbox(max_count_spinbox, max_count_var)
 
         tk.Button(
             filter_frame,

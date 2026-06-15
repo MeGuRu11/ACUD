@@ -53,6 +53,32 @@ def test_statistics_chart_size_changes_with_bar_count():
     assert compact[1] == wide[1]
 
 
+def test_optional_statistics_spinbox_can_start_empty():
+    app = DissertationReportApp.__new__(DissertationReportApp)
+
+    class FakeSpinbox:
+        def __init__(self):
+            self.deleted = []
+
+        def delete(self, start, end):
+            self.deleted.append((start, end))
+
+    class FakeVar:
+        def __init__(self):
+            self.value = "1"
+
+        def set(self, value):
+            self.value = value
+
+    spinbox = FakeSpinbox()
+    variable = FakeVar()
+
+    app.clear_optional_spinbox(spinbox, variable)
+
+    assert spinbox.deleted == [(0, "end")]
+    assert variable.value == ""
+
+
 def test_filter_statistics_dataframe_combines_year_degree_and_text_query():
     app = DissertationReportApp.__new__(DissertationReportApp)
     df = pd.DataFrame(
