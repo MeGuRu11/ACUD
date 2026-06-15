@@ -44,3 +44,23 @@ def test_update_record_can_clear_values_when_explicitly_allowed():
     model.update_record(0, {"Примечания": ""}, allow_empty_update=True)
 
     assert model.data.loc[0, "Примечания"] == ""
+
+
+def test_delete_records_removes_multiple_original_indexes_at_once():
+    model = DataModel({})
+    model.data = pd.DataFrame(
+        [
+            {"name": "first", "year": 2020},
+            {"name": "second", "year": 2021},
+            {"name": "third", "year": 2022},
+            {"name": "fourth", "year": 2023},
+        ]
+    )
+    model.apply_filters()
+
+    deleted = model.delete_records([1, 3])
+
+    assert deleted == 2
+    assert model.data["name"].tolist() == ["first", "third"]
+    assert model.data.index.tolist() == [0, 1]
+    assert "_original_index" in model.filtered_data.columns

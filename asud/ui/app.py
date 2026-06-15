@@ -396,7 +396,7 @@ class DissertationReportApp:
         self.btn_load = self.create_nav_button("Загрузить Excel", self.load_excel_async, active=True)
         self.btn_add = self.create_nav_button("Новая запись", self.add_record)
         self.btn_open_record = self.create_nav_button("Открыть запись", self.open_selected_record_view)
-        self.btn_delete = self.create_nav_button("Удалить", self.delete_selected, variant="danger")
+        self.btn_delete = self.create_nav_button("Удалить выбранные", self.delete_selected, variant="danger")
 
         self.add_nav_group("Отбор")
         self.create_nav_button("Расширенный фильтр", self.open_filter_dialog)
@@ -580,7 +580,7 @@ class DissertationReportApp:
 
         tc = tk.Frame(self.table_frame, bg=APP_THEME["table_background"])
         tc.grid(row=1, column=0, sticky="nsew")
-        self.tree = ttk.Treeview(tc, show="headings")
+        self.tree = ttk.Treeview(tc, show="headings", selectmode="extended")
         vsb = ttk.Scrollbar(tc, orient="vertical", command=self.tree.yview);
         self.tree.configure(yscrollcommand=vsb.set)
         hsb = ttk.Scrollbar(tc, orient="horizontal", command=self.tree.xview);
@@ -1189,18 +1189,27 @@ class DissertationReportApp:
         detail_window.focus_set()
 
     def delete_selected(self):
-        if self.current_role not in ("admin", "editor"): return messagebox.showerror("Доступ запрещён")
+        if self.current_role not in ("admin", "editor"):
+            return messagebox.showerror("Доступ запрещён")
         sel = self.tree.selection()
-        if not sel: return messagebox.showwarning("Удаление", "Выберите запись.")
-        oi = int(sel[0])
-        if messagebox.askyesno("Подтверждение", "Удалить запись?"):
+        if not sel:
+            return messagebox.showwarning("Удаление", "Выберите записи.")
+        try:
+            selected_indexes = sorted({int(item) for item in sel})
+        except ValueError:
+            return messagebox.showwarning("Удаление", "Выберите записи из списка.")
+        if not selected_indexes:
+            return messagebox.showwarning("Удаление", "Выберите записи.")
+        count = len(selected_indexes)
+        question = f"Удалить выбранные записи: {count}?"
+        if messagebox.askyesno("Подтверждение", question):
             try:
-                self.data_model.delete_record(oi);
-                self.display_data();
-                self.save_persisted_data();
-                self.log_action(
-                    f"Удалено: {oi}");
-                messagebox.showinfo("Успех", "Запись удалена")
+                deleted_count = self.data_model.delete_records(selected_indexes)
+                self.display_data()
+                self.save_persisted_data()
+                self.log_action(f"Удалено записей: {deleted_count}; индексы: {selected_indexes}")
+                self.status_var.set(f"Удалено записей: {deleted_count}")
+                messagebox.showinfo("Успех", f"Удалено записей: {deleted_count}")
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Ошибка удаления: {e}")
 

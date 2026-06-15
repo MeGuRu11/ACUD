@@ -119,6 +119,14 @@ class DataModel:
         self.data = self.data.drop(index).reset_index(drop=True)
         self.apply_filters()
 
+    def delete_records(self, indexes):
+        normalized_indexes = sorted({int(index) for index in indexes if int(index) in self.data.index})
+        if not normalized_indexes:
+            return 0
+        self.data = self.data.drop(normalized_indexes).reset_index(drop=True)
+        self.apply_filters()
+        return len(normalized_indexes)
+
     def update_record(self, index, new_values, allow_empty_update=False):
         for col, val in new_values.items():
             if col not in self.data.columns or col == '_original_index': continue

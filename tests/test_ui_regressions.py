@@ -209,3 +209,11 @@ def test_report_column_selector_uses_polished_report_layout():
     assert "Доступные поля" in dialogs_source
     assert "select_all_columns" in dialogs_source
     assert "clear_column_selection" in dialogs_source
+
+
+def test_main_table_supports_bulk_selection_delete():
+    app_source = Path("asud/ui/app.py").read_text(encoding="utf-8")
+
+    assert 'ttk.Treeview(tc, show="headings", selectmode="extended")' in app_source
+    assert "selected_indexes = sorted({int(item) for item in sel})" in app_source
+    assert "self.data_model.delete_records(selected_indexes)" in app_source
