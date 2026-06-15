@@ -19,6 +19,7 @@ backups/
 .ruff_cache/
 htmlcov/
 .coverage
+screenshots/
 build/
 dist/
 *.spec

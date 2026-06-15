@@ -31,6 +31,16 @@ def test_build_exe_batch_uses_pyinstaller_with_project_assets():
     assert "[error]" in normalized
 
 
+def test_build_exe_batch_does_not_bundle_runtime_state():
+    script = Path("build_exe.bat").read_text(encoding="utf-8").lower()
+
+    assert "asud.sqlite3" not in script
+    assert "users.json" not in script
+    assert "config.json" not in script
+    assert "last_data.csv" not in script
+    assert "audit.log" not in script
+
+
 def test_pyinstaller_build_artifacts_are_ignored_by_git():
     gitignore = Path(".gitignore").read_text(encoding="utf-8")
 

@@ -188,3 +188,24 @@ def test_pyinstaller_bundle_asset_resolution_is_supported():
 
     assert "sys._MEIPASS" in app_source
     assert "sys._MEIPASS" in dialogs_source
+
+
+def test_user_dialogs_show_localized_roles_instead_of_internal_codes():
+    dialogs_source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+
+    assert "ROLE_VALUES" in dialogs_source
+    assert "role_label_to_value" in dialogs_source
+    assert '["viewer", "editor", "admin"]' not in dialogs_source
+    assert 'initial=role_value_to_label("viewer")' in dialogs_source
+    assert "new_role = role_label_to_value(self.combo_role.get())" in dialogs_source
+
+
+def test_report_column_selector_uses_polished_report_layout():
+    dialogs_source = Path("asud/ui/dialogs.py").read_text(encoding="utf-8")
+
+    assert 'super().__init__(parent, "Колонки отчёта", "620x640", resizable=True)' in dialogs_source
+    assert "build_report_column_card" in dialogs_source
+    assert "Параметры отчёта" in dialogs_source
+    assert "Доступные поля" in dialogs_source
+    assert "select_all_columns" in dialogs_source
+    assert "clear_column_selection" in dialogs_source

@@ -1,4 +1,13 @@
-from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, WINDOW_MINSIZE
+from asud.ui.theme import (
+    APP_THEME,
+    FONT,
+    ROLE_LABELS,
+    ROLE_VALUES,
+    SPACING,
+    WINDOW_MINSIZE,
+    role_label_to_value,
+    role_value_to_label,
+)
 
 
 def test_theme_defines_approved_palette_and_window_size():
@@ -19,3 +28,7 @@ def test_theme_defines_typography_spacing_and_role_labels():
         "editor": "Редактор",
         "viewer": "Наблюдатель",
     }
+    assert ROLE_VALUES == ["Наблюдатель", "Редактор", "Администратор"]
+    assert role_value_to_label("editor") == "Редактор"
+    assert role_label_to_value("Редактор") == "editor"
+    assert role_label_to_value("editor") == "editor"

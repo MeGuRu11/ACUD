@@ -55,6 +55,16 @@ ROLE_LABELS = {
     "editor": "Редактор",
     "viewer": "Наблюдатель",
 }
+ROLE_VALUES = [ROLE_LABELS["viewer"], ROLE_LABELS["editor"], ROLE_LABELS["admin"]]
+ROLE_LABEL_TO_VALUE = {label: value for value, label in ROLE_LABELS.items()}
+
+
+def role_value_to_label(role):
+    return ROLE_LABELS.get(role, role)
+
+
+def role_label_to_value(label):
+    return ROLE_LABEL_TO_VALUE.get(label, label)
 
 
 def configure_ttk_style(root, theme_name="clam"):

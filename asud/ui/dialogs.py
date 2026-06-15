@@ -10,7 +10,16 @@ from tkinter import messagebox, ttk
 import pandas as pd
 
 from asud.config import APP_ICON_PNG, APP_ICON_SVG, DEGREE_OPTIONS
-from asud.ui.theme import APP_THEME, FONT, ROLE_LABELS, SPACING, configure_ttk_style
+from asud.ui.theme import (
+    APP_THEME,
+    FONT,
+    ROLE_LABELS,
+    ROLE_VALUES,
+    SPACING,
+    configure_ttk_style,
+    role_label_to_value,
+    role_value_to_label,
+)
 
 LOGIN_DIALOG_SIZE = "560x540"
 
@@ -686,16 +695,67 @@ class AddUserDialog(DialogBase):
     def __init__(self, parent, user_manager):
         self.user_manager = user_manager
         self.result = None
-        super().__init__(parent, "Добавить пользователя", "500x400")
+        super().__init__(parent, "Добавить пользователя", "620x520")
+        self.build_user_creation_card()
+        self.entries["login"].focus_set()
+        self.wait(self.cancel)
+
+    def build_user_creation_card(self):
+        self.dialog.configure(bg=APP_THEME["app_background"])
         self.add_header("Добавить пользователя", "Администратор создаёт учётную запись и назначает роль.")
-        body = self.body_frame()
-        form = self.form_frame(body)
+        body = self.body_frame(padx=SPACING["lg"], pady=SPACING["lg"])
+
+        card = tk.Frame(
+            body,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        card.pack(fill="x")
+        tk.Label(
+            card,
+            text="Учётные данные",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=ui_font("heading", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], SPACING["xs"]))
+        tk.Label(
+            card,
+            text="Заполните логин, временный пароль, ФИО и роль пользователя.",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+
+        form = self.form_frame(card)
+        form.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["lg"]))
         self.entries = {
             "login": self.add_field(form, 0, "Логин"),
             "password": self.add_field(form, 1, "Пароль", show="*"),
             "fullname": self.add_field(form, 2, "ФИО"),
-            "role": self.add_combobox(form, 3, "Роль", ["viewer", "editor", "admin"], initial="viewer"),
+            "role": self.add_combobox(
+                form,
+                3,
+                "Роль",
+                ROLE_VALUES,
+                initial=role_value_to_label("viewer"),
+            ),
         }
+        role_hint = tk.Frame(body, bg=APP_THEME["surface_soft"], highlightbackground=APP_THEME["line"], highlightthickness=1)
+        role_hint.pack(fill="x", pady=(SPACING["md"], 0))
+        tk.Label(
+            role_hint,
+            text="Роли: Наблюдатель — просмотр; Редактор — работа с записями; Администратор — пользователи и полный доступ.",
+            bg=APP_THEME["surface_soft"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small"),
+            anchor="w",
+            justify="left",
+            wraplength=520,
+        ).pack(fill="x", padx=SPACING["md"], pady=SPACING["md"])
+
         footer = self.add_footer()
         create_dialog_button(footer, "Создать", self.create).pack(
             side="left", padx=SPACING["panel"], pady=SPACING["md"]
@@ -703,14 +763,12 @@ class AddUserDialog(DialogBase):
         create_dialog_button(footer, "Отмена", self.cancel, variant="secondary").pack(
             side="left", padx=(0, SPACING["sm"]), pady=SPACING["md"]
         )
-        self.entries["login"].focus_set()
-        self.wait(self.cancel)
 
     def create(self):
         login = self.entries["login"].get().strip()
         password = self.entries["password"].get()
         full_name = self.entries["fullname"].get().strip()
-        role = self.entries["role"].get()
+        role = role_label_to_value(self.entries["role"].get())
         ok, message = self.user_manager.add_user(login, password, role, full_name, self.user_manager.current_user)
         if ok:
             self.result = login
@@ -742,8 +800,8 @@ class EditUserDialog(DialogBase):
             form,
             2,
             "Роль",
-            ["viewer", "editor", "admin"],
-            initial=user_info.get("role", "viewer"),
+            ROLE_VALUES,
+            initial=role_value_to_label(user_info.get("role", "viewer")),
             state="readonly" if username != "admin" else "disabled",
         )
         self.var_force = tk.BooleanVar(value=user_info.get("force_password_change", False))
@@ -771,7 +829,7 @@ class EditUserDialog(DialogBase):
     def save(self):
         new_username = self.entry_username.get().strip()
         new_name = self.entry_name.get().strip()
-        new_role = self.combo_role.get()
+        new_role = role_label_to_value(self.combo_role.get())
         force_change = self.var_force.get()
         if new_username and new_username != self.username and new_username != "admin":
             ok, message = self.user_manager.change_username(
@@ -894,7 +952,9 @@ class UserManagementDialog(DialogBase):
             self.tree.delete(item)
         query = self.search_var.get().lower()
         for user in self.user_manager.get_users_list():
-            if query and not any(query in str(user[key]).lower() for key in ["username", "full_name", "role"]):
+            role_label = ROLE_LABELS.get(user["role"], user["role"])
+            searchable_values = [user["username"], user["full_name"], user["role"], role_label]
+            if query and not any(query in str(value).lower() for value in searchable_values):
                 continue
             last_login = user["last_login"]
             if last_login and last_login != "None" and "T" in last_login:
@@ -907,7 +967,7 @@ class UserManagementDialog(DialogBase):
                 values=(
                     user["username"],
                     user["full_name"],
-                    ROLE_LABELS.get(user["role"], user["role"]),
+                    role_label,
                     user["created_at"][:10] if user["created_at"] else "",
                     last_login,
                 ),
@@ -1009,22 +1069,75 @@ class FilterDialog(DialogBase):
 
 
 class ColumnSelectorDialog(DialogBase):
-    def __init__(self, parent, columns, on_confirm):
+    def __init__(self, parent, columns, on_confirm, report_name="отчёта"):
         self.columns = columns
         self.on_confirm = on_confirm
+        self.report_name = report_name
         self.vars = {}
-        super().__init__(parent, "Колонки отчёта", "430x470")
-        self.add_header("Колонки отчёта", "Выберите поля, которые должны попасть в выгрузку.")
-        body = self.body_frame()
-        canvas = tk.Canvas(body, bg=APP_THEME["surface"], highlightthickness=0)
-        scrollbar = ttk.Scrollbar(body, orient="vertical", command=canvas.yview)
+        super().__init__(parent, "Колонки отчёта", "620x640", resizable=True)
+        self.build_report_column_card()
+        self.wait(self.close)
+
+    def build_report_column_card(self):
+        self.dialog.configure(bg=APP_THEME["app_background"])
+        self.add_header(
+            "Параметры отчёта",
+            f"Выберите поля, которые попадут в выгрузку {self.report_name}.",
+        )
+        body = self.body_frame(padx=SPACING["lg"], pady=SPACING["lg"])
+
+        summary = tk.Frame(
+            body,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        summary.pack(fill="x", pady=(0, SPACING["md"]))
+        tk.Label(
+            summary,
+            text="Доступные поля",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=ui_font("heading", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], 2))
+        tk.Label(
+            summary,
+            text=f"Всего колонок: {len(self.columns)}. По умолчанию выбраны все поля.",
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+
+        toolbar = tk.Frame(summary, bg=APP_THEME["surface"])
+        toolbar.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+        create_dialog_button(toolbar, "Выбрать все", self.select_all_columns, variant="secondary", width=14).pack(
+            side="left", padx=(0, SPACING["sm"])
+        )
+        create_dialog_button(toolbar, "Снять выбор", self.clear_column_selection, variant="secondary", width=14).pack(
+            side="left"
+        )
+
+        list_card = tk.Frame(
+            body,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        list_card.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(list_card, bg=APP_THEME["surface"], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(list_card, orient="vertical", command=canvas.yview)
         scroll_frame = tk.Frame(canvas, bg=APP_THEME["surface"])
         scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        scroll_id = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        for column in columns:
+        canvas.pack(side="left", fill="both", expand=True, padx=(SPACING["md"], 0), pady=SPACING["md"])
+        scrollbar.pack(side="right", fill="y", padx=(0, SPACING["md"]), pady=SPACING["md"])
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(scroll_id, width=e.width))
+
+        for column in self.columns:
             var = tk.BooleanVar(value=True)
             self.vars[column] = var
             tk.Checkbutton(
@@ -1038,7 +1151,10 @@ class ColumnSelectorDialog(DialogBase):
                 selectcolor=APP_THEME["surface_soft"],
                 anchor="w",
                 font=ui_font("size"),
-            ).pack(fill="x", pady=2)
+                padx=SPACING["sm"],
+                pady=SPACING["xs"],
+            ).pack(fill="x", pady=1)
+
         footer = self.add_footer()
         create_dialog_button(footer, "Выбрать", self.confirm).pack(
             side="left", padx=SPACING["panel"], pady=SPACING["md"]
@@ -1046,7 +1162,14 @@ class ColumnSelectorDialog(DialogBase):
         create_dialog_button(footer, "Отмена", self.close, variant="secondary").pack(
             side="left", padx=(0, SPACING["sm"]), pady=SPACING["md"]
         )
-        self.wait(self.close)
+
+    def select_all_columns(self):
+        for var in self.vars.values():
+            var.set(True)
+
+    def clear_column_selection(self):
+        for var in self.vars.values():
+            var.set(False)
 
     def confirm(self):
         selected = [column for column, var in self.vars.items() if var.get()]

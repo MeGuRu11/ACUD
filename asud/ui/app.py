@@ -16,7 +16,7 @@ from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 
 from asud.auth import UserManager
-from asud.config import APP_ICON_PNG, CONFIG_FILE, DEFAULT_CONFIG
+from asud.config import APP_ICON_PNG, CONFIG_FILE, DEFAULT_CONFIG, normalize_runtime_config
 from asud.data_model import DataModel
 from asud.reports import ReportGenerator
 from asud.storage import SQLiteStorage
@@ -160,17 +160,21 @@ class DissertationReportApp:
                 loaded = json.load(f)
             config = DEFAULT_CONFIG.copy()
             config.update(loaded)
+            config = normalize_runtime_config(config)
             if config != loaded:
                 self.save_config(config)
         else:
-            config = DEFAULT_CONFIG.copy();
+            config = normalize_runtime_config(DEFAULT_CONFIG.copy())
             self.save_config(config)
-        os.makedirs(config["backup_dir"], exist_ok=True);
+        os.makedirs(config["backup_dir"], exist_ok=True)
         return config
 
     def save_config(self, config=None):
-        if config is None: config = self.config
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f: json.dump(config, f, indent=2, ensure_ascii=False)
+        if config is None:
+            config = self.config
+        Path(CONFIG_FILE).parent.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
 
     def setup_logging(self):
         import sys
@@ -1236,7 +1240,7 @@ class DissertationReportApp:
                     f"Экспорт Excel: {fp}",
                 )
 
-        ColumnSelectorDialog(self.root, ed.columns.tolist(), on_cols)
+        ColumnSelectorDialog(self.root, ed.columns.tolist(), on_cols, report_name="Excel")
 
     def export_word(self):
         if self.data_model.filtered_data.empty: return messagebox.showwarning("Нет данных")
@@ -1254,7 +1258,7 @@ class DissertationReportApp:
                     f"Экспорт Word: {fp}",
                 )
 
-        ColumnSelectorDialog(self.root, ed.columns.tolist(), on_cols)
+        ColumnSelectorDialog(self.root, ed.columns.tolist(), on_cols, report_name="Word")
 
     def build_year_statistics(self, df):
         years = pd.to_numeric(df["Год защиты"], errors="coerce").dropna().astype(int)
