@@ -14,6 +14,7 @@ $DistExe = Join-Path $ProjectDir "dist\ASUD.exe"
 $SetupExe = Join-Path $ProjectDir "release\ASUD-Setup-$AppVersion.exe"
 $BuildDir = Join-Path $ProjectDir "build"
 $BuildLog = Join-Path $BuildDir "inno_setup_build.log"
+$PipelineLog = Join-Path $BuildDir "installer_pipeline.log"
 
 function Write-Line {
     Write-Host ("-" * 68) -ForegroundColor DarkGray
@@ -67,7 +68,27 @@ function Find-InnoCompiler {
     if ($command) {
         return $command.Source
     }
-    throw "Inno Setup 6 не найден. Установите его командой: winget install JRSoftware.InnoSetup"
+    return $null
+}
+
+function Install-InnoSetup {
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw (
+            "Inno Setup 6 не найден, а Windows Package Manager (winget) недоступен. " +
+            "Установите вручную: winget install JRSoftware.InnoSetup"
+        )
+    }
+
+    Write-Info "Inno Setup 6 не найден. Запускаю автоматическую установку..."
+    & $winget.Source install JRSoftware.InnoSetup --exact `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --silent
+    if ($LASTEXITCODE -ne 0) {
+        throw "Автоматическая установка Inno Setup завершилась с кодом $LASTEXITCODE."
+    }
+    Write-Ok "Inno Setup 6 установлен."
 }
 
 function Invoke-Python([hashtable]$Python, [string[]]$Arguments) {
@@ -90,7 +111,13 @@ if ($Help) {
     exit 0
 }
 
+New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
+$exitCode = 0
+$transcriptStarted = $false
+
 try {
+    Start-Transcript -LiteralPath $PipelineLog -Force | Out-Null
+    $transcriptStarted = $true
     Clear-Host
     Write-Host ""
     Write-Line
@@ -105,6 +132,13 @@ try {
 
     Write-Step "2/6" "Проверка Inno Setup 6"
     $iscc = Find-InnoCompiler
+    if (-not $iscc) {
+        Install-InnoSetup
+        $iscc = Find-InnoCompiler
+    }
+    if (-not $iscc) {
+        throw "Inno Setup 6 установлен, но компилятор ISCC.exe не найден."
+    }
     Write-Ok "Компилятор найден: $iscc"
 
     Write-Step "3/6" "Подготовка фирменных ресурсов"
@@ -122,7 +156,6 @@ try {
     Write-Ok "Файл приложения готов: dist\ASUD.exe"
 
     Write-Step "5/6" "Компиляция русскоязычного установщика"
-    New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SetupExe) | Out-Null
     & $iscc $InstallerScript *> $BuildLog
     if ($LASTEXITCODE -ne 0) {
@@ -137,7 +170,8 @@ try {
     $setup = Get-Item -LiteralPath $SetupExe
     Write-Ok "Установщик готов: release\$($setup.Name)"
     Write-Info ("Размер: {0:N1} МБ" -f ($setup.Length / 1MB))
-    Write-Info "Журнал сборки: build\inno_setup_build.log"
+    Write-Info "Журнал Inno Setup: build\inno_setup_build.log"
+    Write-Info "Полный журнал: build\installer_pipeline.log"
 
     Write-Host ""
     Write-Line
@@ -145,21 +179,29 @@ try {
     Write-Host "  Готовый установщик: $SetupExe"
     Write-Line
     Write-Host ""
-    if (-not $NoPause) {
-        Read-Host "Нажмите Enter для выхода"
-    }
-    exit 0
 }
 catch {
+    $exitCode = 1
     Write-Host ""
     Write-Failure $_.Exception.Message
     Write-Line
     Write-Host "  Сборка установщика остановлена." -ForegroundColor Red
-    Write-Host "  Исправьте указанную ошибку и повторите запуск."
+    Write-Host "  Подробности: $PipelineLog"
     Write-Line
     Write-Host ""
-    if (-not $NoPause) {
-        Read-Host "Нажмите Enter для выхода"
-    }
-    exit 1
 }
+finally {
+    if ($transcriptStarted) {
+        try {
+            Stop-Transcript | Out-Null
+        }
+        catch {
+            # Transcript cleanup must not hide the original build result.
+        }
+    }
+}
+
+if (-not $NoPause) {
+    Read-Host "Нажмите Enter для выхода"
+}
+exit $exitCode

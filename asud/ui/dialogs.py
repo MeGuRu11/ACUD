@@ -491,40 +491,203 @@ class InitialAdminDialog(DialogBase):
     def __init__(self, parent, user_manager):
         self.user_manager = user_manager
         self.result = None
-        super().__init__(parent, "Первичная настройка", "520x410")
-        self.add_header(
-            "Создание администратора",
-            "Задайте первую учётную запись администратора. Стандартный admin/admin не используется.",
-        )
-        body = self.body_frame()
-        form = self.form_frame(body)
-        self.entries = {
-            "login": self.add_field(form, 0, "Логин", initial="admin"),
-            "password": self.add_field(form, 1, "Пароль", show="*"),
-            "confirm": self.add_field(form, 2, "Повтор пароля", show="*"),
-            "fullname": self.add_field(form, 3, "ФИО"),
-        }
-        footer = self.add_footer()
-        create_dialog_button(footer, "Создать", self.create).pack(
-            side="left", padx=SPACING["panel"], pady=SPACING["md"]
-        )
-        create_dialog_button(footer, "Отмена", self.cancel, variant="secondary").pack(
-            side="left", padx=(0, SPACING["sm"]), pady=SPACING["md"]
-        )
-        self.entries["password"].focus_set()
+        super().__init__(parent, "Первичная настройка", "680x690")
+        self.build_initial_admin_card()
+        self.dialog.bind("<Return>", lambda event: self.create())
+        self.entries["fullname"].focus_set()
         self.wait(self.cancel)
+
+    def build_initial_admin_card(self):
+        self.dialog.configure(bg=APP_THEME["app_background"])
+
+        header = tk.Frame(self.dialog, bg=APP_THEME["topbar"])
+        header.pack(fill="x")
+        tk.Label(
+            header,
+            text="Первый запуск",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["accent_soft"],
+            font=ui_font("small", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["panel"], SPACING["xs"]))
+        tk.Label(
+            header,
+            text="Настройте администратора",
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_text"],
+            font=ui_font("title", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"])
+        tk.Label(
+            header,
+            text=(
+                "Создайте первую учётную запись с полным доступом. "
+                "Эти данные будут использоваться для входа и управления пользователями."
+            ),
+            bg=APP_THEME["topbar"],
+            fg=APP_THEME["topbar_muted"],
+            font=ui_font("small"),
+            anchor="w",
+            justify="left",
+            wraplength=610,
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["xs"], SPACING["panel"]))
+
+        body = self.body_frame(padx=SPACING["lg"], pady=SPACING["md"])
+        profile_form = self._add_setup_section(
+            body,
+            "Учётная запись администратора",
+            "Укажите имя владельца и логин для входа в АСУД.",
+        )
+        self.entries = {
+            "fullname": self.add_field(profile_form, 0, "ФИО", width=48),
+            "login": self.add_field(profile_form, 1, "Логин", width=48, initial="admin"),
+        }
+
+        security_form = self._add_setup_section(
+            body,
+            "Безопасность",
+            "Минимум 8 символов: заглавная и строчная буква, а также цифра.",
+        )
+        self.entries["password"] = self.add_field(
+            security_form, 0, "Пароль", show="*", width=48
+        )
+        self.entries["confirm"] = self.add_field(
+            security_form, 1, "Повтор пароля", show="*", width=48
+        )
+        for entry in self.entries.values():
+            entry.grid_configure(ipady=SPACING["sm"])
+
+        feedback = tk.Frame(security_form, bg=APP_THEME["surface"])
+        feedback.grid(
+            row=2,
+            column=1,
+            sticky="ew",
+            pady=(SPACING["xs"], SPACING["sm"]),
+        )
+        self.password_strength_var = tk.StringVar(
+            value="Надёжность пароля: не задан"
+        )
+        self.password_strength_label = tk.Label(
+            feedback,
+            textvariable=self.password_strength_var,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small", "bold"),
+            anchor="w",
+        )
+        self.password_strength_label.pack(side="left")
+        self.password_match_var = tk.StringVar(value="")
+        self.password_match_label = tk.Label(
+            feedback,
+            textvariable=self.password_match_var,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["success"],
+            font=ui_font("small", "bold"),
+            anchor="e",
+        )
+        self.password_match_label.pack(side="right")
+
+        self.entries["password"].bind(
+            "<KeyRelease>", self.update_password_feedback
+        )
+        self.entries["confirm"].bind(
+            "<KeyRelease>", self.update_password_feedback
+        )
+
+        footer = self.add_footer()
+        actions = tk.Frame(footer, bg=APP_THEME["surface_soft"])
+        actions.pack(anchor="center", pady=SPACING["md"])
+        create_dialog_button(
+            actions,
+            "Создать администратора",
+            self.create,
+            width=20,
+        ).pack(side="left", padx=(0, SPACING["sm"]))
+        create_dialog_button(
+            actions,
+            "Отмена",
+            self.cancel,
+            variant="secondary",
+            width=16,
+        ).pack(side="left", padx=(SPACING["sm"], 0))
+
+    def _add_setup_section(self, parent, title, description):
+        section = tk.Frame(
+            parent,
+            bg=APP_THEME["surface"],
+            highlightbackground=APP_THEME["line"],
+            highlightthickness=1,
+        )
+        section.pack(fill="x", pady=(0, SPACING["md"]))
+        tk.Label(
+            section,
+            text=title,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["text"],
+            font=ui_font("heading", "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(SPACING["md"], 2))
+        tk.Label(
+            section,
+            text=description,
+            bg=APP_THEME["surface"],
+            fg=APP_THEME["muted_text"],
+            font=ui_font("small"),
+            anchor="w",
+            justify="left",
+        ).pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["sm"]))
+        form = self.form_frame(section)
+        form.pack(fill="x", padx=SPACING["lg"], pady=(0, SPACING["md"]))
+        return form
+
+    def update_password_feedback(self, event=None):
+        password = self.entries["password"].get()
+        confirm = self.entries["confirm"].get()
+        if not password:
+            self.password_strength_var.set("Надёжность пароля: не задан")
+            self.password_strength_label.configure(fg=APP_THEME["muted_text"])
+        else:
+            score = sum(
+                [
+                    len(password) >= 8,
+                    bool(re.search(r"[A-ZА-ЯЁ]", password)),
+                    bool(re.search(r"[a-zа-яё]", password)),
+                    bool(re.search(r"\d", password)),
+                ]
+            )
+            if score <= 1:
+                level, color = "низкая", APP_THEME["danger"]
+            elif score <= 3:
+                level, color = "средняя", APP_THEME["accent_active"]
+            else:
+                level, color = "высокая", APP_THEME["success"]
+            self.password_strength_var.set(f"Надёжность пароля: {level}")
+            self.password_strength_label.configure(fg=color)
+
+        if not confirm:
+            self.password_match_var.set("")
+        elif password == confirm:
+            self.password_match_var.set("Пароли совпадают")
+            self.password_match_label.configure(fg=APP_THEME["success"])
+        else:
+            self.password_match_var.set("Пароли не совпадают")
+            self.password_match_label.configure(fg=APP_THEME["danger"])
 
     def create(self):
         username = self.entries["login"].get().strip()
         password = self.entries["password"].get()
         confirm = self.entries["confirm"].get()
         full_name = self.entries["fullname"].get().strip()
+        if not username or not password or not full_name:
+            return messagebox.showerror("Ошибка", "Заполните все поля")
         if password != confirm:
             return messagebox.showerror("Ошибка", "Пароли не совпадают")
-        ok, message = self.user_manager.create_initial_admin(username, password, full_name)
+        ok, message = self.user_manager.create_initial_admin(
+            username, password, full_name
+        )
         if ok:
             self.result = username
-            messagebox.showinfo("Успех", message)
+            messagebox.showinfo("Администратор создан", message)
             self.dialog.destroy()
         else:
             messagebox.showerror("Ошибка", message)
