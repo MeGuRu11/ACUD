@@ -39,3 +39,29 @@ pytest
 python -m py_compile ASUD.py asud\*.py asud\ui\*.py
 ruff check .
 ```
+
+## Сборка установщика Windows
+
+Для сборки требуется Inno Setup 6. Если он не установлен:
+
+```powershell
+winget install JRSoftware.InnoSetup
+```
+
+Полная сборка приложения и фирменного русскоязычного установщика:
+
+```powershell
+.\build_installer.bat
+```
+
+Готовый файл создаётся по адресу:
+
+```text
+release\ASUD-Setup-1.0.0.exe
+```
+
+Установщик размещает программу для текущего пользователя в
+`%LOCALAPPDATA%\Programs\ASUD` и не требует прав администратора.
+Рабочая база, пользователи, настройки и резервные копии хранятся отдельно
+в `%LOCALAPPDATA%\ASUD`, не включаются в установщик и сохраняются при
+обычном удалении программы.

@@ -24,3 +24,6 @@ build/
 dist/
 *.spec
 assets/asud_icon.ico
+
+release/
+installer/assets/*.bmp
